@@ -1,7 +1,9 @@
+use std::str::FromStr;
 use actix_web::{get, post, delete, put, web, HttpResponse, Responder, Scope, ResponseError};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use chrono::Utc;
+use cron::Schedule;
 use thiserror::Error;
 use crate::job::Job;
 use crate::job::store::{JobStore, SqliteJobStore};
@@ -44,6 +46,9 @@ pub enum JobApiError {
 
     #[error("Job not found")]
     NotFound,
+
+    #[error("Invalid cron expression: {0}")]
+    InvalidCron(String),
 }
 
 impl ResponseError for JobApiError {
@@ -53,6 +58,9 @@ impl ResponseError for JobApiError {
                 HttpResponse::InternalServerError().body(format!("Database error: {}", e))
             }
             JobApiError::NotFound => HttpResponse::NotFound().body("Job not found"),
+            JobApiError::InvalidCron(msg) => {
+                HttpResponse::BadRequest().body(format!("Invalid cron: {}", msg))
+            }
         }
     }
 }
@@ -62,6 +70,10 @@ async fn create_job(
     data: web::Json<JobRequest>,
     store: web::Data<Arc<SqliteJobStore>>,
 ) -> Result<HttpResponse, JobApiError>{
+    Schedule::from_str(&data.cron)
+        .map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
+
+
     let job = Job {
         id: data.id.clone(),
         name: data.name.clone(),
@@ -100,6 +112,10 @@ async fn update_job(
     data: web::Json<JobRequest>,
     store: web::Data<Arc<SqliteJobStore>>,
 ) -> Result<HttpResponse, JobApiError> {
+    Schedule::from_str(&data.cron)
+        .map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
+
+
     let id = path.into_inner();
     let job = Job {
         id,
