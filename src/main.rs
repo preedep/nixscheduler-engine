@@ -5,6 +5,7 @@ use crate::task::registry::TaskRegistry;
 use actix_web::{main, web, App, HttpServer};
 use log::{debug, info};
 use std::sync::Arc;
+use actix_files::Files;
 use crate::api::job_routes;
 
 mod config;
@@ -59,6 +60,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(store.clone()))
             .app_data(web::Data::new(engine.clone()))
             .service(web::scope("/api").service(job_routes()))
+            .service(Files::new("/", "./statics").index_file("index.html"))
     })
         .bind(("0.0.0.0", 8888))?
         .run()
