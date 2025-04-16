@@ -33,7 +33,7 @@ impl SqliteJobStore {
         }
 
         let pool = SqlitePoolOptions::new()
-            .max_connections(5)
+            .max_connections(10)
             .connect(db_url)
             .await
             .expect("Failed to connect to SQLite");
