@@ -6,6 +6,7 @@ mod shard;
 mod job;
 mod utils;
 mod config;
+mod task;
 
 #[actix_web::main]
 async fn main()  -> std::io::Result<()> {
