@@ -7,16 +7,14 @@ async function fetchTasks() {
     tbody.innerHTML = '';
 
     const filterText = document.getElementById('filter-input').value.toLowerCase();
-    const filtered = tasks.filter(t =>
-        t.name.toLowerCase().includes(filterText) ||
-        t.task_type.toLowerCase().includes(filterText)
+    const filtered = tasks.filter(({ name, task_type }) =>
+        name.toLowerCase().includes(filterText) || task_type.toLowerCase().includes(filterText)
     );
 
     document.getElementById('task-count').textContent = `${filtered.length} tasks`;
 
     const grouped = filtered.reduce((acc, task) => {
-        acc[task.name] = acc[task.name] || [];
-        acc[task.name].push(task);
+        (acc[task.name] ||= []).push(task);
         return acc;
     }, {});
 
@@ -33,28 +31,38 @@ async function fetchTasks() {
         const toggleId = `group-${idx}`;
         const isOpen = expandedGroups.has(toggleId);
 
+        const statusCounts = jobs.reduce((acc, { status = 'unknown' }) => {
+            const key = status.toLowerCase();
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+
+        const chartHtml = Object.entries(statusCounts)
+            .map(([status, count]) => `<span class="status-badge ${status}">${statusMap[status] || status} (${count})</span>`)
+            .join(' ');
+
         tbody.insertAdjacentHTML('beforeend', `
-            <tr>
+            <tr class="group-header">
                 <td colspan="6">
-                    <strong>${name}</strong>
-                    <button onclick="toggleGroup('${toggleId}', this)">
-                        ${isOpen ? '▼' : '▶'}
-                    </button>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div><strong>${name}</strong> ${chartHtml}</div>
+                        <button onclick="toggleGroup('${toggleId}', this)">${isOpen ? '▼' : '▶'}</button>
+                    </div>
                 </td>
             </tr>
         `);
 
         jobs.sort((a, b) => new Date(b.last_run || 0) - new Date(a.last_run || 0))
-            .forEach(task => {
-                const status = statusMap[task.status?.toLowerCase()] || task.status || 'Unknown';
+            .forEach(({ task_type, status = 'unknown', last_run, payload, execution_count = 0 }) => {
+                const displayStatus = statusMap[status.toLowerCase()] || status;
                 tbody.insertAdjacentHTML('beforeend', `
                     <tr class="${toggleId}" style="display: ${isOpen ? '' : 'none'};">
                         <td></td>
-                        <td>${task.task_type}</td>
-                        <td><span class="status">${status}</span></td>
-                        <td>${task.last_run || '-'}</td>
-                        <td><pre>${JSON.stringify(task.payload, null, 2)}</pre></td>
-                        <td>${task.execution_count || 0}</td>
+                        <td>${task_type}</td>
+                        <td><span class="status ${status.toLowerCase()}">${displayStatus}</span></td>
+                        <td>${last_run || '-'}</td>
+                        <td><pre>${JSON.stringify(payload, null, 2)}</pre></td>
+                        <td>${execution_count}</td>
                     </tr>
                 `);
             });
@@ -64,12 +72,9 @@ async function fetchTasks() {
 function toggleGroup(groupClass, btn) {
     const rows = document.querySelectorAll(`.${groupClass}`);
     const shouldShow = rows[0]?.style.display === 'none';
-
     rows.forEach(r => r.style.display = shouldShow ? '' : 'none');
     btn.textContent = shouldShow ? '▼' : '▶';
-
-    if (shouldShow) expandedGroups.add(groupClass);
-    else expandedGroups.delete(groupClass);
+    shouldShow ? expandedGroups.add(groupClass) : expandedGroups.delete(groupClass);
 }
 
 function setupFilterBar() {

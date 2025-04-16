@@ -5,13 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Task Execution Dashboard</title>
     <link rel="stylesheet" href="styles.css" />
+    <style>
+        .status-badge {
+            margin-right: 0.25rem;
+            font-size: 0.85rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: 500;
+            background-color: #e5e7eb;
+            color: #374151;
+        }
+        .status-badge.start     { background-color: #fefce8; color: #92400e; }
+        .status-badge.scheduled{ background-color: #ecfccb; color: #365314; }
+        .status-badge.running  { background-color: #e0e7ff; color: #3730a3; }
+        .status-badge.success  { background-color: #d1fae5; color: #065f46; }
+        .status-badge.failed   { background-color: #fee2e2; color: #b91c1c; }
+        .status-badge.disabled { background-color: #f3f4f6; color: #6b7280; }
+    </style>
+
 </head>
 <body>
 <header>
-    <h1>Task Execution Dashboard</h1>
+    <h1>🧭 Task Execution Dashboard</h1>
 </header>
 <main>
     <section class="task-section">
+        <div id="filter-bar"></div>
         <table id="task-table">
             <thead>
             <tr>
@@ -20,6 +40,7 @@
                 <th>Status</th>
                 <th>Last Run</th>
                 <th>Payload</th>
+                <th>Executions</th>
             </tr>
             </thead>
             <tbody></tbody>
