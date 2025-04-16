@@ -64,9 +64,9 @@ DATABASE_URL=sqlite://./data/jobs.db
 flowchart TD
     subgraph CoreEngine [Scheduler Engine]
         C1[JobEngine]
-        C2[Scheduler (Priority Wheel)]
+        C2["Scheduler: Priority Wheel"]
         C3[TaskRegistry]
-        C4[JobStore (SQLite)]
+        C4["JobStore: SQLite"]
         C5[ShardManager]
     end
 
