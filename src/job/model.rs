@@ -43,6 +43,15 @@ impl std::str::FromStr for JobStatus {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct Pipeline {
+    pub id: String,
+    pub name: String,
+    pub jobs: Vec<Job>, // Job List ใน Pipeline
+    pub is_sequential: bool, // true = sequential, false = parallel
+}
+
 #[derive(Debug, Clone)]
 pub struct Job {
     pub id: String,
