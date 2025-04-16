@@ -24,12 +24,7 @@ impl JobEngine {
         shard: Arc<dyn ShardManager>,
         task_registry: Arc<TaskRegistry>,
     ) -> Self {
-        Self {
-            config,
-            store,
-            shard,
-            task_registry,
-        }
+        Self { config, store, shard, task_registry }
     }
 
     pub async fn run(&self) {

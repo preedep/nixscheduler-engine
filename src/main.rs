@@ -7,6 +7,7 @@ mod job;
 mod utils;
 mod config;
 mod task;
+mod scheduler;
 
 #[actix_web::main]
 async fn main()  -> std::io::Result<()> {
