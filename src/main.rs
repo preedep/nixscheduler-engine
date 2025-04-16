@@ -37,6 +37,7 @@ async fn main() -> std::io::Result<()> {
     };
 
     let mut registry = TaskRegistry::new();
+    registry.register(crate::task::print::PrintTask);
     let task_registry = Arc::new(registry);
 
     let engine = JobEngine::new(

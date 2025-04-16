@@ -1,5 +1,6 @@
 use crate::task::handler::TaskHandler;
 use async_trait::async_trait;
+use log::debug;
 
 pub struct PrintTask;
 
@@ -10,7 +11,7 @@ impl TaskHandler for PrintTask {
     }
 
     async fn handle(&self, payload: &str) -> Result<(), String> {
-        println!("[print task] {}", payload);
+        debug!("[print task] {}", payload);
         Ok(())
     }
 }
