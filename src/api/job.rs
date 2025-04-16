@@ -8,6 +8,7 @@ use thiserror::Error;
 use uuid::Uuid;
 use crate::engine::engine::JobEngine;
 use crate::job::Job;
+use crate::job::model::JobStatus;
 use crate::job::store::{JobStore, SqliteJobStore};
 
 #[derive(Debug, Deserialize)]
@@ -26,6 +27,7 @@ pub struct JobResponse {
     pub task_type: String,
     pub payload: String,
     pub last_run: Option<String>,
+    pub status: String,
 }
 
 impl From<Job> for JobResponse {
@@ -37,6 +39,7 @@ impl From<Job> for JobResponse {
             task_type: job.task_type,
             payload: job.payload,
             last_run: job.last_run.map(|dt| dt.to_rfc3339()),
+            status: format!("{}",job.status),
         }
     }
 }
@@ -75,7 +78,6 @@ async fn create_job(
     Schedule::from_str(&data.cron)
         .map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
 
-
     let job = Job {
         id: Uuid::new_v4().to_string(),
         name: data.name.clone(),
@@ -83,6 +85,7 @@ async fn create_job(
         task_type: data.task_type.clone(),
         payload: data.payload.clone(),
         last_run: None,
+        status: JobStatus::Scheduled,
     };
 
     store.insert_job(&job).await?;
@@ -129,6 +132,7 @@ async fn update_job(
         task_type: data.task_type.clone(),
         payload: data.payload.clone(),
         last_run: Some(Utc::now()),
+        status: JobStatus::Scheduled,
     };
 
     store.update_job(&job).await?;

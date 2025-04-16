@@ -20,6 +20,15 @@ async function fetchTasks() {
         grouped[task.name].push(task);
     });
 
+    const statusMap = {
+        start: { label: '🟡 Start', class: 'start' },
+        scheduled: { label: '📅 Scheduled', class: 'scheduled' },
+        running: { label: '🔄 Running', class: 'running' },
+        success: { label: '✅ Success', class: 'success' },
+        failed: { label: '❌ Failed', class: 'failed' },
+        disabled: { label: '🚫 Disabled', class: 'disabled' },
+    };
+
     Object.entries(grouped).forEach(([name, jobs], idx) => {
         const tr = document.createElement('tr');
         const toggleId = `group-${idx}`;
@@ -43,8 +52,7 @@ async function fetchTasks() {
             })
             .forEach((task, i) => {
                 const row = document.createElement('tr');
-                const status = task.last_run ? '✅ Success' : '⏳ Pending';
-                const statusClass = task.last_run ? 'success' : 'pending';
+                const statusInfo = statusMap[task.status] || { label: task.status, class: 'unknown' };
                 const execCount = task.execution_count || 0;
 
                 row.className = toggleId;
@@ -53,7 +61,7 @@ async function fetchTasks() {
                 row.innerHTML = `
           <td></td>
           <td>${task.task_type}</td>
-          <td><span class="status ${statusClass}">${status}</span></td>
+          <td><span class="status ${statusInfo.class}">${statusInfo.label}</span></td>
           <td>${task.last_run || '-'}</td>
           <td><pre>${JSON.stringify(task.payload, null, 2)}</pre></td>
           <td>${execCount}</td>

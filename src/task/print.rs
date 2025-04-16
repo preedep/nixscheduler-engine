@@ -12,6 +12,7 @@ impl TaskHandler for PrintTask {
 
     async fn handle(&self, payload: &str) -> Result<(), String> {
         debug!("[print task] {}", payload);
+
         Ok(())
     }
 }
