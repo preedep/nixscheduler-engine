@@ -18,7 +18,6 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn from_env() -> Self {
-
         dotenv::dotenv().ok();
 
         let shard_mode = match env::var("SHARD_MODE").unwrap_or_else(|_| "local".to_string()).as_str() {
