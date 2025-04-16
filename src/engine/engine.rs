@@ -1,8 +1,7 @@
-use std::sync::Arc;
 use chrono::Utc;
 use log::{error, info};
+use std::sync::Arc;
 use tokio::time::{sleep, Duration};
-
 
 use crate::job::store::JobStore;
 use crate::shard::ShardManager;
@@ -24,11 +23,19 @@ impl JobEngine {
         shard: Arc<dyn ShardManager>,
         task_registry: Arc<TaskRegistry>,
     ) -> Self {
-        Self { config, store, shard, task_registry }
+        Self {
+            config,
+            store,
+            shard,
+            task_registry,
+        }
     }
 
     pub async fn run(&self) {
-        let my_jobs = self.shard.get_local_jobs(self.store.load_jobs().await).await;
+        let my_jobs = self
+            .shard
+            .get_local_jobs(self.store.load_jobs().await)
+            .await;
         info!("Running scheduler with {} local jobs", my_jobs.len());
 
         for job in my_jobs {
@@ -37,7 +44,9 @@ impl JobEngine {
 
             tokio::spawn(async move {
                 while let Some(next_time) = job.next_run() {
-                    let dur = (next_time - Utc::now()).to_std().unwrap_or(Duration::from_secs(1));
+                    let dur = (next_time - Utc::now())
+                        .to_std()
+                        .unwrap_or(Duration::from_secs(1));
                     sleep(dur).await;
 
                     if let Some(handler) = task_registry.get(&job.task_type) {
@@ -46,7 +55,10 @@ impl JobEngine {
                             error!("[{}] Task error: {}", job.name, e);
                         }
                     } else {
-                        error!("[{}] No handler for task type '{}'", job.name, job.task_type);
+                        error!(
+                            "[{}] No handler for task type '{}'",
+                            job.name, job.task_type
+                        );
                     }
 
                     store.update_last_run(&job.id, Utc::now()).await;

@@ -1,20 +1,20 @@
-use std::sync::Arc;
 use crate::config::AppConfig;
 use crate::job::Job;
 use crate::shard::ShardManager;
 use crate::utils::hash_job_id;
+use std::sync::Arc;
 
 pub struct LocalShardManager {
     pub shard_count: usize,
-    _config: Arc<AppConfig>
+    _config: Arc<AppConfig>,
 }
 impl LocalShardManager {
     pub fn new(config: Arc<AppConfig>) -> Self {
-       Self {
+        Self {
             shard_count: 10,
-            _config: config
-          }
-       }
+            _config: config,
+        }
+    }
 }
 #[async_trait::async_trait]
 impl ShardManager for LocalShardManager {

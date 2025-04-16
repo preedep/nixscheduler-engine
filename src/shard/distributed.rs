@@ -1,8 +1,8 @@
-use std::sync::Arc;
 use crate::config::AppConfig;
 use crate::job::Job;
 use crate::shard::ShardManager;
 use crate::utils::hash_job_id;
+use std::sync::Arc;
 
 pub struct DistributedShardManager {
     pub shard_id: usize,

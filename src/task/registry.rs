@@ -18,7 +18,8 @@ impl TaskRegistry {
     }
 
     pub fn register<H: TaskHandler + 'static>(&mut self, handler: H) {
-        self.handlers.insert(handler.task_type().to_string(), Arc::new(handler));
+        self.handlers
+            .insert(handler.task_type().to_string(), Arc::new(handler));
     }
 
     pub fn get(&self, task_type: &str) -> Option<Arc<dyn TaskHandler>> {

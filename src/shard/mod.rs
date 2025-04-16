@@ -1,10 +1,10 @@
-mod local;
 mod distributed;
+mod local;
 
 use crate::job::Job;
 
-pub use local::LocalShardManager;
 pub use distributed::DistributedShardManager;
+pub use local::LocalShardManager;
 #[async_trait::async_trait]
 pub trait ShardManager: Send + Sync {
     async fn assign_shard(&self, job_id: &str) -> usize;

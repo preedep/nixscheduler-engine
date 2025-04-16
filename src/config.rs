@@ -20,13 +20,20 @@ impl AppConfig {
     pub fn from_env() -> Self {
         dotenv::dotenv().ok();
 
-        let shard_mode = match env::var("SHARD_MODE").unwrap_or_else(|_| "local".to_string()).as_str() {
+        let shard_mode = match env::var("SHARD_MODE")
+            .unwrap_or_else(|_| "local".to_string())
+            .as_str()
+        {
             "distributed" => {
-                let shard_id = env::var("SHARD_ID").expect("SHARD_ID is required in distributed mode")
-                    .parse::<usize>().expect("Invalid SHARD_ID");
+                let shard_id = env::var("SHARD_ID")
+                    .expect("SHARD_ID is required in distributed mode")
+                    .parse::<usize>()
+                    .expect("Invalid SHARD_ID");
 
-                let total = env::var("TOTAL_SHARDS").unwrap_or_else(|_| "1".to_string())
-                    .parse::<usize>().expect("Invalid TOTAL_SHARDS");
+                let total = env::var("TOTAL_SHARDS")
+                    .unwrap_or_else(|_| "1".to_string())
+                    .parse::<usize>()
+                    .expect("Invalid TOTAL_SHARDS");
 
                 ShardMode::Distributed {
                     shard_id,
@@ -36,7 +43,8 @@ impl AppConfig {
             _ => ShardMode::Local,
         };
 
-        let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://jobs.db".to_string());
+        let database_url =
+            env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://jobs.db".to_string());
 
         let tick_interval_secs = env::var("TICK_INTERVAL_SECS")
             .ok()
