@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Row, Sqlite};
 use std::sync::Arc;
 use std::fs;
+use std::path::Path;
 
 #[async_trait]
 pub trait JobStore: Send + Sync {
@@ -19,10 +20,15 @@ pub struct SqliteJobStore {
 impl SqliteJobStore {
     pub async fn new(db_url: &str) -> Self {
         // Ensure the directory exists
-        if db_url.starts_with("sqlite://./") {
-            let path = db_url.trim_start_matches("sqlite://./");
-            if let Some(dir) = std::path::Path::new(path).parent() {
-                fs::create_dir_all(dir).expect("Failed to create DB folder");
+
+        if db_url.starts_with("sqlite://") {
+            let path = db_url.trim_start_matches("sqlite://");
+
+            let path_obj = Path::new(path);
+            if let Some(parent) = path_obj.parent() {
+                if let Err(e) = fs::create_dir_all(parent) {
+                    panic!("Failed to create DB folder {:?}: {}", parent, e);
+                }
             }
         }
 
