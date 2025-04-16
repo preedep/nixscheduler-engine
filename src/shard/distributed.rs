@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use crate::config::AppConfig;
 use crate::job::Job;
 use crate::shard::ShardManager;
 use crate::utils::hash_job_id;
@@ -5,8 +7,18 @@ use crate::utils::hash_job_id;
 pub struct DistributedShardManager {
     pub shard_id: usize,
     pub total_shards: usize,
+    _config: Arc<AppConfig>,
 }
 
+impl DistributedShardManager {
+    pub fn new(shard_id: usize, total_shards: usize, config: Arc<AppConfig>) -> Self {
+        Self {
+            shard_id,
+            total_shards,
+            _config: config,
+        }
+    }
+}
 #[async_trait::async_trait]
 impl ShardManager for DistributedShardManager {
     async fn assign_shard(&self, job_id: &str) -> usize {
