@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use log::{error, info};
+use log::{debug, error, info};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::sync::Arc;
@@ -81,8 +81,9 @@ impl Scheduler {
                     let job_id = scheduled.job.id.clone();
                     let store = self.store.clone();
 
+
                     tokio::spawn(async move {
-                        info!("[{}] Executing", job_name);
+                        info!("[{}] Execution with Payload: {:?}", job_name, payload);
                         if let Err(err) = handler.handle(&payload).await {
                             error!("[{}] Error: {}", job_name, err);
                         }
