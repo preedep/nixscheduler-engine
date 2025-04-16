@@ -2,9 +2,10 @@ use crate::engine::engine::JobEngine;
 use crate::job::store::{JobStore, SqliteJobStore};
 use crate::shard::{DistributedShardManager, LocalShardManager, ShardManager};
 use crate::task::registry::TaskRegistry;
-use actix_web::main;
+use actix_web::{main, web, App, HttpServer};
 use log::{debug, info};
 use std::sync::Arc;
+use crate::api::job_routes;
 
 mod config;
 mod engine;
@@ -13,6 +14,7 @@ mod scheduler;
 mod shard;
 mod task;
 mod utils;
+mod api;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -43,8 +45,19 @@ async fn main() -> std::io::Result<()> {
         task_registry.clone(),
     );
 
-    info!("Starting job engine...");
-    engine.run().await;
+    tokio::task::spawn(async move {
+        info!("Starting job engine...");
+        engine.run().await;
+    });
 
-    Ok(())
+    HttpServer::new(move || {
+        App::new()
+            .wrap(actix_web::middleware::Logger::default())
+            .app_data(web::Data::new(store.clone()))
+            .service(web::scope("/api").service(job_routes()))
+    })
+        .bind(("0.0.0.0", 8888))?
+        .run()
+        .await
+
 }
