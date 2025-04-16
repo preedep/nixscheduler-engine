@@ -40,22 +40,24 @@ async fn main() -> std::io::Result<()> {
     registry.register(crate::task::print::PrintTask);
     let task_registry = Arc::new(registry);
 
-    let engine = JobEngine::new(
+    let engine = Arc::new(JobEngine::new(
         app_conf.clone().into(),
         store.clone(),
         shard.clone(),
         task_registry.clone(),
-    );
+    ));
 
+    let engine_clone = engine.clone();
     tokio::task::spawn(async move {
         info!("Starting job engine...");
-        engine.run().await;
+        engine_clone.run().await;
     });
 
     HttpServer::new(move || {
         App::new()
             .wrap(actix_web::middleware::Logger::default())
             .app_data(web::Data::new(store.clone()))
+            .app_data(web::Data::new(engine.clone()))
             .service(web::scope("/api").service(job_routes()))
     })
         .bind(("0.0.0.0", 8888))?

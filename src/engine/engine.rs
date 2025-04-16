@@ -1,5 +1,5 @@
 use chrono::Utc;
-use log::{error, info};
+use log::{debug, error, info};
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
@@ -30,7 +30,16 @@ impl JobEngine {
             task_registry,
         }
     }
+    pub async fn reload_job_by_id(&self, job_id: &str) {
+        debug!("Reloading job by ID: {}", job_id);
 
+        let jobs = self.store.load_jobs().await;
+        for job in jobs {
+            if job.id == job_id {
+                debug!("Found job with ID: {}", job_id);
+            }
+        }
+    }
     pub async fn run(&self) {
         let my_jobs = self
             .shard

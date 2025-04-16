@@ -6,6 +6,7 @@ use chrono::Utc;
 use cron::Schedule;
 use thiserror::Error;
 use uuid::Uuid;
+use crate::engine::engine::JobEngine;
 use crate::job::Job;
 use crate::job::store::{JobStore, SqliteJobStore};
 
@@ -69,6 +70,7 @@ impl ResponseError for JobApiError {
 async fn create_job(
     data: web::Json<JobRequest>,
     store: web::Data<Arc<SqliteJobStore>>,
+    engine: web::Data<Arc<JobEngine>>,
 ) -> Result<HttpResponse, JobApiError>{
     Schedule::from_str(&data.cron)
         .map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
@@ -84,6 +86,9 @@ async fn create_job(
     };
 
     store.insert_job(&job).await?;
+
+    engine.reload_job_by_id(&job.id).await;
+
     Ok(HttpResponse::Created().json(JobResponse::from(job)))
 }
 
