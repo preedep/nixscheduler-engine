@@ -19,6 +19,77 @@ pub struct SqliteJobStore {
 }
 
 impl SqliteJobStore {
+    pub async fn insert_job(&self, job: &Job) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            INSERT INTO jobs (id, name, cron, task_type, payload, last_run)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+        )
+            .bind(&job.id)
+            .bind(&job.name)
+            .bind(&job.cron)
+            .bind(&job.task_type)
+            .bind(&job.payload)
+            .bind(job.last_run.map(|d| d.to_rfc3339()))
+            .execute(&*self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_job_by_id(&self, id: &str) -> Result<Option<Job>, sqlx::Error> {
+        let row = sqlx::query(
+            r#"SELECT id, name, cron, task_type, payload, last_run FROM jobs WHERE id = ?"#,
+        )
+            .bind(id)
+            .fetch_optional(&*self.pool)
+            .await?;
+
+        if let Some(r) = row {
+            Ok(Some(Job {
+                id: r.try_get("id")?,
+                name: r.try_get("name")?,
+                cron: r.try_get("cron")?,
+                task_type: r.try_get("task_type")?,
+                payload: r.try_get("payload").unwrap_or_default(),
+                last_run: r
+                    .try_get::<Option<String>, _>("last_run")?
+                    .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn update_job(&self, job: &Job) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE jobs
+            SET name = ?1, cron = ?2, task_type = ?3, payload = ?4
+            WHERE id = ?5
+            "#,
+        )
+            .bind(&job.name)
+            .bind(&job.cron)
+            .bind(&job.task_type)
+            .bind(&job.payload)
+            .bind(&job.id)
+            .execute(&*self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_job(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query(r#"DELETE FROM jobs WHERE id = ?"#)
+            .bind(id)
+            .execute(&*self.pool)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn new(db_url: &str) -> Self {
         // Ensure the directory exists
         debug!("CWD = {:?}", std::env::current_dir());
