@@ -5,12 +5,12 @@ use std::sync::Arc;
 use chrono::Utc;
 use cron::Schedule;
 use thiserror::Error;
+use uuid::Uuid;
 use crate::job::Job;
 use crate::job::store::{JobStore, SqliteJobStore};
 
 #[derive(Debug, Deserialize)]
 pub struct JobRequest {
-    pub id: String,
     pub name: String,
     pub cron: String,
     pub task_type: String,
@@ -75,7 +75,7 @@ async fn create_job(
 
 
     let job = Job {
-        id: data.id.clone(),
+        id: Uuid::new_v4().to_string(),
         name: data.name.clone(),
         cron: data.cron.clone(),
         task_type: data.task_type.clone(),
@@ -84,7 +84,7 @@ async fn create_job(
     };
 
     store.insert_job(&job).await?;
-    Ok(HttpResponse::Created().finish())
+    Ok(HttpResponse::Created().json(JobResponse::from(job)))
 }
 
 #[get("")]

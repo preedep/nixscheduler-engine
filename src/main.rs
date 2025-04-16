@@ -21,7 +21,8 @@ async fn main() -> std::io::Result<()> {
     pretty_env_logger::init();
     let app_conf = config::AppConfig::from_env();
 
-    let store = Arc::new(SqliteJobStore::new(&app_conf.database_url).await) as Arc<dyn JobStore>;
+    //let store = Arc::new(SqliteJobStore::new(&app_conf.database_url).await) as Arc<dyn JobStore>;
+    let store = Arc::new(SqliteJobStore::new(&app_conf.database_url).await);
 
     let shard: Arc<dyn ShardManager> = match &app_conf.shard_mode {
         config::ShardMode::Distributed {
