@@ -14,91 +14,71 @@ async function fetchTasks() {
 
     document.getElementById('task-count').textContent = `${filtered.length} tasks`;
 
-    const grouped = {};
-    filtered.forEach(task => {
-        if (!grouped[task.name]) grouped[task.name] = [];
-        grouped[task.name].push(task);
-    });
+    const grouped = filtered.reduce((acc, task) => {
+        acc[task.name] = acc[task.name] || [];
+        acc[task.name].push(task);
+        return acc;
+    }, {});
 
     const statusMap = {
-        start: { label: '🟡 Start', class: 'start' },
-        scheduled: { label: '📅 Scheduled', class: 'scheduled' },
-        running: { label: '🔄 Running', class: 'running' },
-        success: { label: '✅ Success', class: 'success' },
-        failed: { label: '❌ Failed', class: 'failed' },
-        disabled: { label: '🚫 Disabled', class: 'disabled' },
+        start: '🟡 Start',
+        scheduled: '📅 Scheduled',
+        running: '🔄 Running',
+        success: '✅ Success',
+        failed: '❌ Failed',
+        disabled: '🚫 Disabled',
     };
 
     Object.entries(grouped).forEach(([name, jobs], idx) => {
-        const tr = document.createElement('tr');
         const toggleId = `group-${idx}`;
         const isOpen = expandedGroups.has(toggleId);
 
-        tr.innerHTML = `
-      <td colspan="6">
-        <strong>${name}</strong>
-        <button onclick="toggleGroup('${toggleId}', this)">
-          ${isOpen ? '▼' : '▶'}
-        </button>
-      </td>
-    `;
-        tbody.appendChild(tr);
+        tbody.insertAdjacentHTML('beforeend', `
+            <tr>
+                <td colspan="6">
+                    <strong>${name}</strong>
+                    <button onclick="toggleGroup('${toggleId}', this)">
+                        ${isOpen ? '▼' : '▶'}
+                    </button>
+                </td>
+            </tr>
+        `);
 
-        jobs
-            .sort((a, b) => {
-                const dateA = a.last_run ? new Date(a.last_run) : new Date(0);
-                const dateB = b.last_run ? new Date(b.last_run) : new Date(0);
-                return dateB - dateA;
-            })
-            .forEach((task, i) => {
-                const row = document.createElement('tr');
-                const statusInfo = statusMap[task.status] || { label: task.status, class: 'unknown' };
-                const execCount = task.execution_count || 0;
-
-                row.className = toggleId;
-                row.style.display = isOpen ? '' : 'none';
-
-                row.innerHTML = `
-          <td></td>
-          <td>${task.task_type}</td>
-          <td><span class="status ${statusInfo.class}">${statusInfo.label}</span></td>
-          <td>${task.last_run || '-'}</td>
-          <td><pre>${JSON.stringify(task.payload, null, 2)}</pre></td>
-          <td>${execCount}</td>
-        `;
-
-                tbody.appendChild(row);
+        jobs.sort((a, b) => new Date(b.last_run || 0) - new Date(a.last_run || 0))
+            .forEach(task => {
+                const status = statusMap[task.status?.toLowerCase()] || task.status || 'Unknown';
+                tbody.insertAdjacentHTML('beforeend', `
+                    <tr class="${toggleId}" style="display: ${isOpen ? '' : 'none'};">
+                        <td></td>
+                        <td>${task.task_type}</td>
+                        <td><span class="status">${status}</span></td>
+                        <td>${task.last_run || '-'}</td>
+                        <td><pre>${JSON.stringify(task.payload, null, 2)}</pre></td>
+                        <td>${task.execution_count || 0}</td>
+                    </tr>
+                `);
             });
     });
 }
 
 function toggleGroup(groupClass, btn) {
     const rows = document.querySelectorAll(`.${groupClass}`);
-    const currentlyExpanded = rows[0]?.style.display !== 'none';
-    const shouldShow = !currentlyExpanded;
+    const shouldShow = rows[0]?.style.display === 'none';
 
-    rows.forEach(r => {
-        r.style.display = shouldShow ? '' : 'none';
-    });
+    rows.forEach(r => r.style.display = shouldShow ? '' : 'none');
+    btn.textContent = shouldShow ? '▼' : '▶';
 
-    if (shouldShow) {
-        expandedGroups.add(groupClass);
-        btn.textContent = '▼';
-    } else {
-        expandedGroups.delete(groupClass);
-        btn.textContent = '▶';
-    }
+    if (shouldShow) expandedGroups.add(groupClass);
+    else expandedGroups.delete(groupClass);
 }
 
 function setupFilterBar() {
-    const filter = document.createElement('div');
-    filter.innerHTML = `
-    <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-      <input id="filter-input" type="text" placeholder="Filter by name or type..." style="padding: 0.5rem; width: 300px; font-size: 1rem;">
-      <span id="task-count" style="font-weight: bold;"></span>
-    </div>
-  `;
-    document.querySelector('main').insertBefore(filter, document.querySelector('section'));
+    document.querySelector('main').insertAdjacentHTML('afterbegin', `
+        <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <input id="filter-input" type="text" placeholder="Filter by name or type..." style="padding: 0.5rem; width: 300px; font-size: 1rem;">
+            <span id="task-count" style="font-weight: bold;"></span>
+        </div>
+    `);
     document.getElementById('filter-input').addEventListener('input', fetchTasks);
 }
 
