@@ -4,5 +4,5 @@ curl -v -X POST http://localhost:8888/api/jobs \
     "name": "Say Hello",
     "cron": "*/5 * * * * * *",
     "task_type": "print",
-    "payload": "Hello from Rust!"
+    "payload": "{\"message\": \"Hello, World!\"}"
 }'
