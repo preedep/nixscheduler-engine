@@ -39,7 +39,7 @@ impl From<Job> for JobResponse {
             task_type: job.task_type,
             payload: job.payload,
             last_run: job.last_run.map(|dt| dt.to_rfc3339()),
-            status: format!("{}",job.status),
+            status: job.status.to_string(),
         }
     }
 }

@@ -147,7 +147,7 @@ impl SqliteJobStore {
 #[async_trait]
 impl JobStore for SqliteJobStore {
     async fn load_jobs(&self) -> Vec<Job> {
-        let rows = sqlx::query(r#"SELECT id, name, cron, task_type, payload, last_run FROM jobs"#)
+        let rows = sqlx::query(r#"SELECT id, name, cron, task_type, payload, last_run,status FROM jobs"#)
             .fetch_all(&*self.pool)
             .await
             .unwrap();
