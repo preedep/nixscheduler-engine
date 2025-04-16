@@ -5,6 +5,7 @@ use sqlx::{sqlite::SqlitePoolOptions, Pool, Row, Sqlite};
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
+use log::debug;
 
 #[async_trait]
 pub trait JobStore: Send + Sync {
@@ -20,7 +21,8 @@ pub struct SqliteJobStore {
 impl SqliteJobStore {
     pub async fn new(db_url: &str) -> Self {
         // Ensure the directory exists
-
+        debug!("CWD = {:?}", std::env::current_dir());
+        debug!("DB URL = {:?}", db_url);
         if db_url.starts_with("sqlite://") {
             let path = db_url.trim_start_matches("sqlite://");
 
