@@ -1,5 +1,5 @@
-use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use twox_hash::XxHash64;
 pub fn hash_job_id(job_id: &str) -> usize {
     let mut hasher = DefaultHasher::new();

@@ -1,10 +1,10 @@
+use chrono::{DateTime, Utc};
+use log::{error, info};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::sync::Arc;
-use chrono::{Utc, DateTime};
-use log::{error, info};
-use tokio::time::{Duration, Instant, sleep_until};
 use tokio::sync::Mutex;
+use tokio::time::{sleep_until, Duration, Instant};
 
 use crate::job::model::Job;
 use crate::job::store::JobStore;

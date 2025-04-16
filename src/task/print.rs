@@ -1,5 +1,5 @@
-use async_trait::async_trait;
 use crate::task::handler::TaskHandler;
+use async_trait::async_trait;
 
 pub struct PrintTask;
 
