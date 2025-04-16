@@ -88,7 +88,32 @@ flowchart TD
     C2 -->|tick| TaskExecution[Execute Job via TaskHandler]
     TaskExecution --> C4
 ```
+## 📌 Mermaid Architecture Diagram - JobEngine
+```mermaid
+flowchart TD
+    Start[Engine Start] --> Init[Load Config + Store + Shard + Registry]
+    Init --> LoadJobs[Load jobs from store]
+    LoadJobs --> ShardFilter[Filter local jobs]
+    ShardFilter --> ScheduleLoop[Loop over jobs and schedule]
 
+    
+    subgraph Job_Scheduling
+        ScheduleLoop --> SetScheduled[Set status: Scheduled]
+        SetScheduled --> WaitNext[Wait for cron time]
+        WaitNext --> CheckHandler{Handler exists?}
+        CheckHandler -- Yes --> SetStart[Set status: Start]
+        CheckHandler -- No --> LogMissing[Log error: No handler]
+
+        SetStart --> SetRunning[Set status: Running]
+        SetRunning --> Execute[Execute task]
+
+        Execute -- Success --> SetSuccess[Set status: Success]
+        Execute -- Failed --> SetFailed[Set status: Failed]
+
+        SetSuccess --> UpdateLastRun[Update last_run timestamp]
+        SetFailed --> UpdateLastRun
+    end
+```
 ---
 
 ## 💡 Example Job Format

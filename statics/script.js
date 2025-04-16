@@ -7,90 +7,83 @@ async function fetchTasks() {
     tbody.innerHTML = '';
 
     const filterText = document.getElementById('filter-input').value.toLowerCase();
-    const filtered = tasks.filter(t =>
-        t.name.toLowerCase().includes(filterText) ||
-        t.task_type.toLowerCase().includes(filterText)
+    const filtered = tasks.filter(({ name, task_type }) =>
+        name.toLowerCase().includes(filterText) || task_type.toLowerCase().includes(filterText)
     );
 
     document.getElementById('task-count').textContent = `${filtered.length} tasks`;
 
-    const grouped = {};
-    filtered.forEach(task => {
-        if (!grouped[task.name]) grouped[task.name] = [];
-        grouped[task.name].push(task);
-    });
+    const grouped = filtered.reduce((acc, task) => {
+        (acc[task.name] ||= []).push(task);
+        return acc;
+    }, {});
+
+    const statusMap = {
+        start: '🟡 Start',
+        scheduled: '📅 Scheduled',
+        running: '🔄 Running',
+        success: '✅ Success',
+        failed: '❌ Failed',
+        disabled: '🚫 Disabled',
+    };
 
     Object.entries(grouped).forEach(([name, jobs], idx) => {
-        const tr = document.createElement('tr');
         const toggleId = `group-${idx}`;
         const isOpen = expandedGroups.has(toggleId);
 
-        tr.innerHTML = `
-      <td colspan="6">
-        <strong>${name}</strong>
-        <button onclick="toggleGroup('${toggleId}', this)">
-          ${isOpen ? '▼' : '▶'}
-        </button>
-      </td>
-    `;
-        tbody.appendChild(tr);
+        const statusCounts = jobs.reduce((acc, { status = 'unknown' }) => {
+            const key = status.toLowerCase();
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
 
-        jobs
-            .sort((a, b) => {
-                const dateA = a.last_run ? new Date(a.last_run) : new Date(0);
-                const dateB = b.last_run ? new Date(b.last_run) : new Date(0);
-                return dateB - dateA;
-            })
-            .forEach((task, i) => {
-                const row = document.createElement('tr');
-                const status = task.last_run ? '✅ Success' : '⏳ Pending';
-                const statusClass = task.last_run ? 'success' : 'pending';
-                const execCount = task.execution_count || 0;
+        const chartHtml = Object.entries(statusCounts)
+            .map(([status, count]) => `<span class="status-badge ${status}">${statusMap[status] || status} (${count})</span>`)
+            .join(' ');
 
-                row.className = toggleId;
-                row.style.display = isOpen ? '' : 'none';
+        tbody.insertAdjacentHTML('beforeend', `
+            <tr class="group-header">
+                <td colspan="6">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div><strong>${name}</strong> ${chartHtml}</div>
+                        <button onclick="toggleGroup('${toggleId}', this)">${isOpen ? '▼' : '▶'}</button>
+                    </div>
+                </td>
+            </tr>
+        `);
 
-                row.innerHTML = `
-          <td></td>
-          <td>${task.task_type}</td>
-          <td><span class="status ${statusClass}">${status}</span></td>
-          <td>${task.last_run || '-'}</td>
-          <td><pre>${JSON.stringify(task.payload, null, 2)}</pre></td>
-          <td>${execCount}</td>
-        `;
-
-                tbody.appendChild(row);
+        jobs.sort((a, b) => new Date(b.last_run || 0) - new Date(a.last_run || 0))
+            .forEach(({ task_type, status = 'unknown', last_run, payload, execution_count = 0 }) => {
+                const displayStatus = statusMap[status.toLowerCase()] || status;
+                tbody.insertAdjacentHTML('beforeend', `
+                    <tr class="${toggleId}" style="display: ${isOpen ? '' : 'none'};">
+                        <td></td>
+                        <td>${task_type}</td>
+                        <td><span class="status ${status.toLowerCase()}">${displayStatus}</span></td>
+                        <td>${last_run || '-'}</td>
+                        <td><pre>${JSON.stringify(payload, null, 2)}</pre></td>
+                        <td>${execution_count}</td>
+                    </tr>
+                `);
             });
     });
 }
 
 function toggleGroup(groupClass, btn) {
     const rows = document.querySelectorAll(`.${groupClass}`);
-    const currentlyExpanded = rows[0]?.style.display !== 'none';
-    const shouldShow = !currentlyExpanded;
-
-    rows.forEach(r => {
-        r.style.display = shouldShow ? '' : 'none';
-    });
-
-    if (shouldShow) {
-        expandedGroups.add(groupClass);
-        btn.textContent = '▼';
-    } else {
-        expandedGroups.delete(groupClass);
-        btn.textContent = '▶';
-    }
+    const shouldShow = rows[0]?.style.display === 'none';
+    rows.forEach(r => r.style.display = shouldShow ? '' : 'none');
+    btn.textContent = shouldShow ? '▼' : '▶';
+    shouldShow ? expandedGroups.add(groupClass) : expandedGroups.delete(groupClass);
 }
 
 function setupFilterBar() {
-    const filter = document.createElement('div');
-    filter.innerHTML = `
-    <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-      <input id="filter-input" type="text" placeholder="Filter by name or type..." style="padding: 0.5rem; width: 300px; font-size: 1rem;">
-      <span id="task-count" style="font-weight: bold;"></span>
-    </div>
-  `;
-    document.querySelector('main').insertBefore(filter, document.querySelector('section'));
+    document.querySelector('main').insertAdjacentHTML('afterbegin', `
+        <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+            <input id="filter-input" type="text" placeholder="Filter by name or type..." style="padding: 0.5rem; width: 300px; font-size: 1rem;">
+            <span id="task-count" style="font-weight: bold;"></span>
+        </div>
+    `);
     document.getElementById('filter-input').addEventListener('input', fetchTasks);
 }
 

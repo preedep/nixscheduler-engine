@@ -1,4 +1,4 @@
-use crate::job::model::Job;
+use crate::job::model::{Job, JobStatus};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{sqlite::SqlitePoolOptions, Pool, Row, Sqlite};
@@ -6,11 +6,14 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use log::debug;
+use std::str::FromStr;
+use crate::job::model::JobStatus::Start;
 
 #[async_trait]
 pub trait JobStore: Send + Sync {
     async fn load_jobs(&self) -> Vec<Job>;
     async fn update_last_run(&self, job_id: &str, dt: DateTime<Utc>);
+    async fn update_status(&self, job_id: &str, status: JobStatus);
 }
 
 #[derive(Clone)]
@@ -22,8 +25,8 @@ impl SqliteJobStore {
     pub async fn insert_job(&self, job: &Job) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
-            INSERT INTO jobs (id, name, cron, task_type, payload, last_run)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            INSERT INTO jobs (id, name, cron, task_type, payload, last_run,status)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             "#,
         )
             .bind(&job.id)
@@ -32,6 +35,7 @@ impl SqliteJobStore {
             .bind(&job.task_type)
             .bind(&job.payload)
             .bind(job.last_run.map(|d| d.to_rfc3339()))
+            .bind(&job.status.to_string())
             .execute(&*self.pool)
             .await?;
 
@@ -40,13 +44,16 @@ impl SqliteJobStore {
 
     pub async fn get_job_by_id(&self, id: &str) -> Result<Option<Job>, sqlx::Error> {
         let row = sqlx::query(
-            r#"SELECT id, name, cron, task_type, payload, last_run FROM jobs WHERE id = ?"#,
+            r#"SELECT id, name, cron, task_type, payload, last_run,status FROM jobs WHERE id = ?"#,
         )
             .bind(id)
             .fetch_optional(&*self.pool)
             .await?;
 
         if let Some(r) = row {
+            let status = r.try_get("status").unwrap_or("start");
+            let status = JobStatus::from_str(status).unwrap_or(JobStatus::Start);
+
             Ok(Some(Job {
                 id: r.try_get("id")?,
                 name: r.try_get("name")?,
@@ -56,6 +63,7 @@ impl SqliteJobStore {
                 last_run: r
                     .try_get::<Option<String>, _>("last_run")?
                     .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
+                status: status
             }))
         } else {
             Ok(None)
@@ -66,14 +74,15 @@ impl SqliteJobStore {
         sqlx::query(
             r#"
             UPDATE jobs
-            SET name = ?1, cron = ?2, task_type = ?3, payload = ?4
-            WHERE id = ?5
+            SET name = ?1, cron = ?2, task_type = ?3, payload = ?4 , status = ?5
+            WHERE id = ?6
             "#,
         )
             .bind(&job.name)
             .bind(&job.cron)
             .bind(&job.task_type)
             .bind(&job.payload)
+            .bind(&job.status.to_string())
             .bind(&job.id)
             .execute(&*self.pool)
             .await?;
@@ -120,7 +129,8 @@ impl SqliteJobStore {
                 cron TEXT NOT NULL,
                 task_type TEXT NOT NULL,
                 payload TEXT,
-                last_run TEXT
+                last_run TEXT,
+                status TEXT DEFAULT 'start'
             )
             "#,
         )
@@ -137,7 +147,7 @@ impl SqliteJobStore {
 #[async_trait]
 impl JobStore for SqliteJobStore {
     async fn load_jobs(&self) -> Vec<Job> {
-        let rows = sqlx::query(r#"SELECT id, name, cron, task_type, payload, last_run FROM jobs"#)
+        let rows = sqlx::query(r#"SELECT id, name, cron, task_type, payload, last_run,status FROM jobs"#)
             .fetch_all(&*self.pool)
             .await
             .unwrap();
@@ -157,6 +167,7 @@ impl JobStore for SqliteJobStore {
                             .unwrap()
                             .with_timezone(&Utc)
                     }),
+                status: JobStatus::from_str(r.try_get("status").unwrap_or("start")).unwrap_or(Start)
             })
             .collect()
     }
@@ -164,6 +175,14 @@ impl JobStore for SqliteJobStore {
     async fn update_last_run(&self, job_id: &str, dt: DateTime<Utc>) {
         sqlx::query(r#"UPDATE jobs SET last_run = ? WHERE id = ?"#)
             .bind(dt.to_rfc3339())
+            .bind(job_id)
+            .execute(&*self.pool)
+            .await
+            .unwrap();
+    }
+    async fn update_status(&self, job_id: &str, status: JobStatus) {
+        sqlx::query(r#"UPDATE jobs SET status = ? WHERE id = ?"#)
+            .bind(status.to_string())
             .bind(job_id)
             .execute(&*self.pool)
             .await

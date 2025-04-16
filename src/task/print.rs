@@ -1,3 +1,4 @@
+use std::thread::sleep;
 use crate::task::handler::TaskHandler;
 use async_trait::async_trait;
 use log::debug;
@@ -12,6 +13,7 @@ impl TaskHandler for PrintTask {
 
     async fn handle(&self, payload: &str) -> Result<(), String> {
         debug!("[print task] {}", payload);
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         Ok(())
     }
 }

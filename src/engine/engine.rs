@@ -7,6 +7,7 @@ use crate::job::store::JobStore;
 use crate::shard::ShardManager;
 use crate::config::AppConfig;
 use crate::job::Job;
+use crate::job::model::JobStatus;
 use crate::task::registry::TaskRegistry;
 
 pub struct JobEngine {
@@ -43,7 +44,7 @@ impl JobEngine {
     pub async fn schedule(&self, job: Job) {
         let task_registry = self.task_registry.clone();
         let store = self.store.clone();
-
+        store.update_status(&job.id, JobStatus::Scheduled).await;
         tokio::spawn(async move {
             while let Some(next_time) = job.next_run() {
                 let dur = (next_time - Utc::now())
@@ -53,9 +54,12 @@ impl JobEngine {
 
                 match task_registry.get(&job.task_type) {
                     Some(handler) => {
+                        store.update_status(&job.id, JobStatus::Start).await;
                         info!("[{}] Executing task", job.name);
+                        store.update_status(&job.id, JobStatus::Running).await;
                         if let Err(e) = handler.handle(&job.payload).await {
                             error!("[{}] Task error: {}", job.name, e);
+                            store.update_status(&job.id, JobStatus::Failed).await;
                         }
                     }
                     None => error!(
@@ -63,7 +67,7 @@ impl JobEngine {
                         job.name, job.task_type
                     ),
                 }
-
+                store.update_status(&job.id, JobStatus::Success).await;
                 store.update_last_run(&job.id, Utc::now()).await;
             }
             info!("[{}] Invalid cron expression", job.name);

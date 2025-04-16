@@ -1,62 +1,73 @@
 body {
     margin: 0;
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f9fafb;
     color: #333;
 }
-
 header {
     background-color: #1e293b;
     color: white;
     padding: 1rem;
     text-align: center;
 }
-
 main {
     padding: 2rem;
 }
-
 .task-section {
     background: white;
     padding: 1rem;
     border-radius: 8px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
-
 table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 1rem;
 }
-
 th, td {
     padding: 0.75rem;
     border-bottom: 1px solid #ccc;
     text-align: left;
     vertical-align: top;
 }
-
 th {
     background-color: #f1f5f9;
 }
-
 pre {
     white-space: pre-wrap;
     font-size: 0.85rem;
 }
-
 .status {
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     font-weight: bold;
+    display: inline-block;
 }
-
+.status.start {
+    background-color: #fefce8;
+    color: #92400e;
+}
+.status.scheduled {
+    background-color: #ecfccb;
+    color: #365314;
+}
+.status.running {
+    background-color: #e0e7ff;
+    color: #3730a3;
+}
 .status.success {
     background-color: #d1fae5;
     color: #065f46;
 }
-
-.status.pending {
-    background-color: #fef3c7;
-    color: #92400e;
+.status.failed {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+.status.disabled {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+.status.unknown {
+    background-color: #e5e7eb;
+    color: #374151;
 }
