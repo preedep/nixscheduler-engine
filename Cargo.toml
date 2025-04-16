@@ -19,3 +19,13 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+opt-level = "z"        # ใช้ "z" เพื่อลดขนาด binary (หรือใช้ "3" เพื่อความเร็วสูงสุด)
+lto = true             # เปิด Link Time Optimization
+codegen-units = 1      # ลด parallel units เพื่อให้ binary เล็กลง
+panic = "abort"        # ลด overhead จาก panic (ใช้ถ้าไม่ต้องการ backtrace)
+strip = true           # ตัด symbol debugging ทิ้ง (binary เล็กลงอีก)
+
+# ถ้าต้องการ compile ให้เร็วกว่าเล็กน้อย:
+# opt-level = 3
