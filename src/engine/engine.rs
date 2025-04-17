@@ -48,6 +48,7 @@ impl JobEngine {
 
     pub async fn schedule(&self, job: Job) {
         let task_registry = self.task_registry.clone();
+        task_registry.print_all_handlers();
         let store = self.store.clone();
         store.update_status(&job.id, JobStatus::Scheduled).await;
         tokio::spawn(async move {
@@ -57,6 +58,7 @@ impl JobEngine {
                     .unwrap_or(Duration::from_secs(1));
                 sleep(dur).await;
                 let task_type = job.task_type.clone();
+                
                 match task_registry.get(task_type.task_type_name()) {
                     Some(handler) => {
                         store.update_status(&job.id, JobStatus::Start).await;
