@@ -6,8 +6,7 @@ use tokio::time::{sleep, Duration};
 use crate::job::store::JobStore;
 use crate::shard::ShardManager;
 use crate::config::AppConfig;
-use crate::job::Job;
-use crate::job::model::JobStatus;
+use crate::domain::model::{Job, JobStatus};
 use crate::task::registry::TaskRegistry;
 
 pub struct JobEngine {
@@ -37,7 +36,7 @@ impl JobEngine {
 
         if let Some(job) = self.store.load_jobs().await.into_iter().find(|job| job.id == job_id) {
             debug!("Found job with ID: {}", job_id);
-            self.schedule(job).await;
+            self.schedule(job.to_job().unwrap()).await;
         }
     }
 
@@ -51,8 +50,8 @@ impl JobEngine {
                     .to_std()
                     .unwrap_or(Duration::from_secs(1));
                 sleep(dur).await;
-
-                match task_registry.get(&job.task_type) {
+                let task_type = job.task_type.clone().task_type_name();
+                match task_registry.get(task_type) {
                     Some(handler) => {
                         store.update_status(&job.id, JobStatus::Start).await;
                         info!("[{}] Executing task", job.name);
@@ -64,7 +63,7 @@ impl JobEngine {
                     }
                     None => error!(
                         "[{}] No handler for task type '{}'",
-                        job.name, job.task_type
+                        job.name, task_type
                     ),
                 }
                 store.update_status(&job.id, JobStatus::Success).await;

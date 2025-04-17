@@ -17,6 +17,7 @@ mod task;
 mod utils;
 mod api;
 mod azure;
+mod domain;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

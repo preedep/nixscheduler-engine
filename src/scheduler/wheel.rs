@@ -5,8 +5,7 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{sleep_until, Duration, Instant};
-
-use crate::job::model::Job;
+use crate::domain::model::Job;
 use crate::job::store::JobStore;
 use crate::task::registry::TaskRegistry;
 
@@ -72,9 +71,10 @@ impl Scheduler {
                 if scheduled.run_at > now {
                     sleep_until(scheduled.run_at).await;
                 }
-
+                
+                let task_type = scheduled.job.task_type.clone().task_type_name();
                 // run task
-                let handler_opt = self.task_registry.get(&scheduled.job.task_type);
+                let handler_opt = self.task_registry.get(task_type);
                 if let Some(handler) = handler_opt {
                     let payload = scheduled.job.payload.clone();
                     let job_name = scheduled.job.name.clone();

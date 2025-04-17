@@ -6,9 +6,9 @@ use chrono::Utc;
 use cron::Schedule;
 use thiserror::Error;
 use uuid::Uuid;
+use crate::domain::model::{Job, JobRaw, JobStatus};
 use crate::engine::engine::JobEngine;
-use crate::job::Job;
-use crate::job::model::JobStatus;
+
 use crate::job::store::{JobStore, SqliteJobStore};
 
 #[derive(Debug, Deserialize)]
@@ -30,8 +30,8 @@ pub struct JobResponse {
     pub status: String,
 }
 
-impl From<Job> for JobResponse {
-    fn from(job: Job) -> Self {
+impl From<JobRaw> for JobResponse {
+    fn from(job: JobRaw) -> Self {
         Self {
             id: job.id,
             name: job.name,
@@ -53,6 +53,9 @@ pub enum JobApiError {
 
     #[error("Invalid cron expression: {0}")]
     InvalidCron(String),
+
+    #[error("Invalid payload format: {0}")]
+    InvalidPayload(String),
 }
 
 impl ResponseError for JobApiError {
@@ -64,6 +67,9 @@ impl ResponseError for JobApiError {
             JobApiError::NotFound => HttpResponse::NotFound().body("Job not found"),
             JobApiError::InvalidCron(msg) => {
                 HttpResponse::BadRequest().body(format!("Invalid cron: {}", msg))
+            },
+            JobApiError::InvalidPayload(msg) => {
+                HttpResponse::BadRequest().body(format!("Invalid payload: {}", msg))
             }
         }
     }
@@ -78,7 +84,7 @@ async fn create_job(
     Schedule::from_str(&data.cron)
         .map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
 
-    let job = Job {
+    let job = JobRaw {
         id: Uuid::new_v4().to_string(),
         name: data.name.clone(),
         cron: data.cron.clone(),
@@ -86,14 +92,15 @@ async fn create_job(
         payload: data.payload.clone(),
         last_run: None,
         status: JobStatus::Scheduled,
-        adf_job: None,
+        
     };
 
     store.insert_job(&job).await?;
 
     engine.reload_job_by_id(&job.id).await;
 
-    Ok(HttpResponse::Created().json(JobResponse::from(job)))
+    let job = JobResponse::from(job);
+    Ok(HttpResponse::Created().json(job))
 }
 
 #[get("")]
@@ -126,7 +133,7 @@ async fn update_job(
 
 
     let id = path.into_inner();
-    let job = Job {
+    let job = JobRaw {
         id,
         name: data.name.clone(),
         cron: data.cron.clone(),
@@ -134,7 +141,7 @@ async fn update_job(
         payload: data.payload.clone(),
         last_run: Some(Utc::now()),
         status: JobStatus::Scheduled,
-        adf_job: None,
+        
     };
 
     store.update_job(&job).await?;
