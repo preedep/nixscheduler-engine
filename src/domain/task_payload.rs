@@ -1,7 +1,7 @@
-use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 
-#[derive(Debug,Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(tag = "task_type", content = "payload")]
 pub enum TaskPayload {
     #[serde(rename = "adf_pipeline")]
@@ -23,6 +23,33 @@ impl TaskPayload {
             TaskPayload::Print(_) => "print",
         }
     }
+
+    pub fn as_print(&self) -> Option<&PrintConfig> {
+        match self {
+            TaskPayload::Print(config) => Some(config),
+            _ => None,
+        }
+    }
+    pub fn as_adf(&self) -> Option<&AdfConfig> {
+        match self {
+            TaskPayload::AdfPipeline(config) => Some(config),
+            _ => None,
+        }
+    }
+
+    pub fn as_shell_command(&self) -> Option<&ShellCommandConfig> {
+        match self {
+            TaskPayload::ShellCommand(config) => Some(config),
+            _ => None,
+        }
+    }
+
+    pub fn as_stepfn(&self) -> Option<&AwsStepFnConfig> {
+        match self {
+            TaskPayload::AwsStepFunction(config) => Some(config),
+            _ => None,
+        }
+    }
 }
 
 impl Display for TaskPayload {
@@ -31,7 +58,7 @@ impl Display for TaskPayload {
     }
 }
 
-#[derive(Debug,Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AdfConfig {
     pub subscription_id: String,
     pub resource_group: String,
@@ -40,23 +67,23 @@ pub struct AdfConfig {
     pub parameters: Option<serde_json::Value>,
 }
 
-#[derive(Debug,Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AwsStepFnConfig {
     pub arn: String,
     pub input: serde_json::Value,
 }
 
-#[derive(Debug,Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct LogicAppConfig {
     pub endpoint: String,
     pub auth_type: String,
 }
 
-#[derive(Debug,Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ShellCommandConfig {
     pub command: String,
 }
-#[derive(Debug,Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PrintConfig {
     pub message: String,
 }

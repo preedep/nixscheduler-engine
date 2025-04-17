@@ -1,8 +1,8 @@
-use std::thread::sleep;
+use crate::domain::task_payload::TaskPayload;
 use crate::task::handler::TaskHandler;
 use async_trait::async_trait;
 use log::debug;
-use crate::domain::task_payload::TaskPayload;
+use std::thread::sleep;
 
 pub struct PrintTask;
 

@@ -1,9 +1,9 @@
-use std::fmt::Display;
+use crate::domain::task_payload::TaskPayload;
 use chrono::{DateTime, Utc};
 use cron::Schedule;
-use std::str::FromStr;
 use log::debug;
-use crate::domain::task_payload::TaskPayload;
+use std::fmt::Display;
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum JobStatus {
@@ -15,7 +15,6 @@ pub enum JobStatus {
     Disabled,
 }
 
-
 impl Display for JobStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
@@ -25,7 +24,8 @@ impl Display for JobStatus {
             JobStatus::Success => "success",
             JobStatus::Failed => "failed",
             JobStatus::Disabled => "disabled",
-        }.to_string();
+        }
+        .to_string();
         write!(f, "{}", str)
     }
 }
@@ -46,8 +46,6 @@ impl std::str::FromStr for JobStatus {
     }
 }
 
-
-
 #[derive(Debug, Clone)]
 pub struct Job {
     pub id: String,
@@ -57,7 +55,6 @@ pub struct Job {
     pub payload: String,
     pub last_run: Option<DateTime<Utc>>,
     pub status: JobStatus,
-
 }
 
 #[derive(Debug, Clone)]
@@ -85,7 +82,7 @@ impl JobRaw {
             self.task_type, self.payload
         );
         debug!("Task JSON: {}", task_json);
-        
+
         let task: TaskPayload = serde_json::from_str(&task_json)?;
 
         Ok(Job {

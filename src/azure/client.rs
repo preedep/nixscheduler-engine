@@ -15,7 +15,11 @@ pub struct AdfClient {
 }
 
 impl AdfClient {
-    pub fn new(subscription_id: String, resource_group: String, factory_name: String) -> Result<Self,Box<dyn std::error::Error>> {
+    pub fn new(
+        subscription_id: String,
+        resource_group: String,
+        factory_name: String,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let credential = DefaultAzureCredential::new()?;
         Ok(Self {
             subscription_id,
@@ -30,10 +34,7 @@ impl AdfClient {
         pipeline_name: &str,
         parameters: Option<serde_json::Value>,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        debug!("trigger pipeline run for {} ", 
-            pipeline_name, 
-          
-        );
+        debug!("trigger pipeline run for {} ", pipeline_name,);
         let token_response = self
             .credential
             .get_token(&["https://management.azure.com/.default"])
@@ -61,24 +62,21 @@ impl AdfClient {
 
         if res.status().is_success() {
             let resp_json: serde_json::Value = res.json().await?;
-            let run_id = resp_json["runId"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
-           
+            let run_id = resp_json["runId"].as_str().unwrap_or_default().to_string();
+
             debug!("run_id: {}", run_id);
         } else {
             let err_text = res.text().await?;
-            let err_msg = format!(
-                "Failed to trigger pipeline run: {}",
-                err_text
-            );
+            let err_msg = format!("Failed to trigger pipeline run: {}", err_text);
             return Err(err_msg.into());
         }
-        
+
         Ok("".to_string())
     }
-    pub async fn get_pipeline_status(&self, pipeline_name: &str) -> Result<String, Box<dyn std::error::Error>> {
+    pub async fn get_pipeline_status(
+        &self,
+        pipeline_name: &str,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         debug!("get pipeline status for {}", pipeline_name);
         Ok("".to_string())
     }

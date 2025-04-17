@@ -1,13 +1,13 @@
-use std::str::FromStr;
-use actix_web::{get, post, delete, put, web, HttpResponse, Responder, Scope, ResponseError};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use chrono::Utc;
-use cron::Schedule;
-use thiserror::Error;
-use uuid::Uuid;
 use crate::domain::model::{Job, JobRaw, JobStatus};
 use crate::engine::engine::JobEngine;
+use actix_web::{HttpResponse, Responder, ResponseError, Scope, delete, get, post, put, web};
+use chrono::Utc;
+use cron::Schedule;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+use std::sync::Arc;
+use thiserror::Error;
+use uuid::Uuid;
 
 use crate::job::store::{JobStore, SqliteJobStore};
 
@@ -67,7 +67,7 @@ impl ResponseError for JobApiError {
             JobApiError::NotFound => HttpResponse::NotFound().body("Job not found"),
             JobApiError::InvalidCron(msg) => {
                 HttpResponse::BadRequest().body(format!("Invalid cron: {}", msg))
-            },
+            }
             JobApiError::InvalidPayload(msg) => {
                 HttpResponse::BadRequest().body(format!("Invalid payload: {}", msg))
             }
@@ -80,9 +80,8 @@ async fn create_job(
     data: web::Json<JobRequest>,
     store: web::Data<Arc<SqliteJobStore>>,
     engine: web::Data<Arc<JobEngine>>,
-) -> Result<HttpResponse, JobApiError>{
-    Schedule::from_str(&data.cron)
-        .map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
+) -> Result<HttpResponse, JobApiError> {
+    Schedule::from_str(&data.cron).map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
 
     let job = JobRaw {
         id: Uuid::new_v4().to_string(),
@@ -92,7 +91,6 @@ async fn create_job(
         payload: data.payload.clone(),
         last_run: None,
         status: JobStatus::Scheduled,
-        
     };
 
     store.insert_job(&job).await?;
@@ -128,9 +126,7 @@ async fn update_job(
     data: web::Json<JobRequest>,
     store: web::Data<Arc<SqliteJobStore>>,
 ) -> Result<HttpResponse, JobApiError> {
-    Schedule::from_str(&data.cron)
-        .map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
-
+    Schedule::from_str(&data.cron).map_err(|e| JobApiError::InvalidCron(e.to_string()))?;
 
     let id = path.into_inner();
     let job = JobRaw {
@@ -141,7 +137,6 @@ async fn update_job(
         payload: data.payload.clone(),
         last_run: Some(Utc::now()),
         status: JobStatus::Scheduled,
-        
     };
 
     store.update_job(&job).await?;

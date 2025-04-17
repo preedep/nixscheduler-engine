@@ -1,9 +1,9 @@
 use crate::config::AppConfig;
 
+use crate::domain::model::{Job, JobRaw};
 use crate::shard::ShardManager;
 use crate::utils::hash_job_id;
 use std::sync::Arc;
-use crate::domain::model::{Job, JobRaw};
 
 pub struct LocalShardManager {
     pub shard_count: usize,
@@ -24,6 +24,6 @@ impl ShardManager for LocalShardManager {
     }
 
     async fn get_local_jobs(&self, all_jobs: Vec<JobRaw>) -> Vec<Job> {
-        all_jobs.iter().map(|c|c.to_job().unwrap()).collect()
+        all_jobs.iter().map(|c| c.to_job().unwrap()).collect()
     }
 }

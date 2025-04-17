@@ -1,23 +1,23 @@
+use crate::api::job_routes;
 use crate::engine::engine::JobEngine;
 use crate::job::store::{JobStore, SqliteJobStore};
 use crate::shard::{DistributedShardManager, LocalShardManager, ShardManager};
 use crate::task::registry::TaskRegistry;
-use actix_web::{main, web, App, HttpServer};
+use actix_files::Files;
+use actix_web::{App, HttpServer, main, web};
 use log::{debug, info};
 use std::sync::Arc;
-use actix_files::Files;
-use crate::api::job_routes;
 
+mod api;
+mod azure;
 mod config;
+mod domain;
 mod engine;
 mod job;
 mod scheduler;
 mod shard;
 mod task;
 mod utils;
-mod api;
-mod azure;
-mod domain;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -64,8 +64,7 @@ async fn main() -> std::io::Result<()> {
             .service(web::scope("/api").service(job_routes()))
             .service(Files::new("/", "./statics").index_file("index.html"))
     })
-        .bind(("0.0.0.0", 8888))?
-        .run()
-        .await
-
+    .bind(("0.0.0.0", 8888))?
+    .run()
+    .await
 }

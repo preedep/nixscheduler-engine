@@ -1,11 +1,9 @@
 mod distributed;
 mod local;
 
-
-
+use crate::domain::model::{Job, JobRaw};
 pub use distributed::DistributedShardManager;
 pub use local::LocalShardManager;
-use crate::domain::model::{Job, JobRaw};
 
 #[async_trait::async_trait]
 pub trait ShardManager: Send + Sync {

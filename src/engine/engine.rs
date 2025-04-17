@@ -1,12 +1,12 @@
 use chrono::Utc;
 use log::{debug, error, info};
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
-use crate::job::store::JobStore;
-use crate::shard::ShardManager;
 use crate::config::AppConfig;
 use crate::domain::model::{Job, JobStatus};
+use crate::job::store::JobStore;
+use crate::shard::ShardManager;
 use crate::task::registry::TaskRegistry;
 
 pub struct JobEngine {
@@ -34,7 +34,13 @@ impl JobEngine {
     pub async fn reload_job_by_id(&self, job_id: &str) {
         debug!("Reloading job by ID: {}", job_id);
 
-        if let Some(job) = self.store.load_jobs().await.into_iter().find(|job| job.id == job_id) {
+        if let Some(job) = self
+            .store
+            .load_jobs()
+            .await
+            .into_iter()
+            .find(|job| job.id == job_id)
+        {
             debug!("Found job with ID: {}", job_id);
             self.schedule(job.to_job().unwrap()).await;
         }
@@ -61,10 +67,7 @@ impl JobEngine {
                             store.update_status(&job.id, JobStatus::Failed).await;
                         }
                     }
-                    None => error!(
-                        "[{}] No handler for task type '{}'",
-                        job.name, task_type
-                    ),
+                    None => error!("[{}] No handler for task type '{}'", job.name, task_type),
                 }
                 store.update_status(&job.id, JobStatus::Success).await;
                 store.update_last_run(&job.id, Utc::now()).await;
