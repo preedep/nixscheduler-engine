@@ -1,13 +1,13 @@
 use chrono::Utc;
 use log::{debug, error, info};
+use std::fmt::format;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
+use crate::config::AppConfig;
+use crate::domain::model::{Job, JobStatus};
 use crate::job::store::JobStore;
 use crate::shard::ShardManager;
-use crate::config::AppConfig;
-use crate::job::Job;
-use crate::job::model::JobStatus;
 use crate::task::registry::TaskRegistry;
 
 pub struct JobEngine {
@@ -35,39 +35,59 @@ impl JobEngine {
     pub async fn reload_job_by_id(&self, job_id: &str) {
         debug!("Reloading job by ID: {}", job_id);
 
-        if let Some(job) = self.store.load_jobs().await.into_iter().find(|job| job.id == job_id) {
+        if let Some(job) = self
+            .store
+            .load_jobs()
+            .await
+            .into_iter()
+            .find(|job| job.id == job_id)
+        {
             debug!("Found job with ID: {}", job_id);
-            self.schedule(job).await;
+            self.schedule(job.to_job().unwrap()).await;
         }
     }
 
     pub async fn schedule(&self, job: Job) {
         let task_registry = self.task_registry.clone();
+        task_registry.print_all_handlers();
         let store = self.store.clone();
-        store.update_status(&job.id, JobStatus::Scheduled).await;
+        store
+            .update_status(&job.id, JobStatus::Scheduled, "Preparing for start")
+            .await;
         tokio::spawn(async move {
             while let Some(next_time) = job.next_run() {
                 let dur = (next_time - Utc::now())
                     .to_std()
                     .unwrap_or(Duration::from_secs(1));
                 sleep(dur).await;
+                let task_type = job.task_type.clone();
 
-                match task_registry.get(&job.task_type) {
+                match task_registry.get(task_type.task_type_name()) {
                     Some(handler) => {
-                        store.update_status(&job.id, JobStatus::Start).await;
+                        store
+                            .update_status(&job.id, JobStatus::Start, "Starting")
+                            .await;
                         info!("[{}] Executing task", job.name);
-                        store.update_status(&job.id, JobStatus::Running).await;
-                        if let Err(e) = handler.handle(&job.payload).await {
+                        store
+                            .update_status(&job.id, JobStatus::Running, "Running")
+                            .await;
+                        if let Err(e) = handler.handle(&task_type).await {
                             error!("[{}] Task error: {}", job.name, e);
-                            store.update_status(&job.id, JobStatus::Failed).await;
+                            store
+                                .update_status(
+                                    &job.id,
+                                    JobStatus::Failed,
+                                    format!("{}", e).as_str(),
+                                )
+                                .await;
+                        }else{
+                            store
+                                .update_status(&job.id, JobStatus::Success, "Successful")
+                                .await;
                         }
                     }
-                    None => error!(
-                        "[{}] No handler for task type '{}'",
-                        job.name, job.task_type
-                    ),
+                    None => error!("[{}] No handler for task type '{}'", job.name, task_type),
                 }
-                store.update_status(&job.id, JobStatus::Success).await;
                 store.update_last_run(&job.id, Utc::now()).await;
             }
             info!("[{}] Invalid cron expression", job.name);

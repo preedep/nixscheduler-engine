@@ -43,31 +43,10 @@ pre {
     font-weight: bold;
     display: inline-block;
 }
-.status.start {
-    background-color: #fefce8;
-    color: #92400e;
-}
-.status.scheduled {
-    background-color: #ecfccb;
-    color: #365314;
-}
-.status.running {
-    background-color: #e0e7ff;
-    color: #3730a3;
-}
-.status.success {
-    background-color: #d1fae5;
-    color: #065f46;
-}
-.status.failed {
-    background-color: #fee2e2;
-    color: #b91c1c;
-}
-.status.disabled {
-    background-color: #f3f4f6;
-    color: #6b7280;
-}
-.status.unknown {
-    background-color: #e5e7eb;
-    color: #374151;
-}
+.status.start     { background-color: #fefce8; color: #92400e; }
+.status.scheduled { background-color: #ecfccb; color: #365314; }
+.status.running   { background-color: #e0e7ff; color: #3730a3; }
+.status.success   { background-color: #d1fae5; color: #065f46; }
+.status.failed    { background-color: #fee2e2; color: #b91c1c; }
+.status.disabled  { background-color: #f3f4f6; color: #6b7280; }
+.status.unknown   { background-color: #e5e7eb; color: #374151; }
