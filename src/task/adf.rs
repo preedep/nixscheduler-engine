@@ -4,12 +4,13 @@ use crate::task::handler::TaskHandler;
 use async_trait::async_trait;
 use log::debug;
 
+
 pub struct AdfTask;
 
 #[async_trait]
 impl TaskHandler for AdfTask {
     fn task_type(&self) -> &'static str {
-        "adf"
+        "adf_pipeline"
     }
 
     async fn handle(&self, payload: &TaskPayload) -> Result<(), String> {
