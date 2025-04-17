@@ -68,30 +68,32 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AdfPipelineRunStatus {
-    pub runId: String,
-    pub runGroupId: Option<String>,
-    pub pipelineName: String,
+    pub run_id: String,
+    pub run_group_id: Option<String>,
+    pub pipeline_name: String,
     pub parameters: Option<HashMap<String, String>>,
-    pub invokedBy: Option<InvokedBy>,
-    pub runStart: Option<String>, // You can change to chrono::DateTime<Utc> if needed
-    pub runEnd: Option<String>,
-    pub durationInMs: Option<u64>,
-    pub status: AdfPipelineStatus, // Or use enum if needed
+    pub invoked_by: Option<InvokedBy>,
+    pub run_start: Option<String>, // หรือใช้ Option<DateTime<Utc>>
+    pub run_end: Option<String>,
+    pub duration_in_ms: Option<u64>,
+    pub status: AdfPipelineStatus,
     pub message: Option<String>,
-    pub lastUpdated: Option<String>,
+    pub last_updated: Option<String>,
     pub annotations: Option<Vec<String>>,
-    pub runDimensions: Option<HashMap<String, String>>,
-    pub isLatest: Option<bool>,
+    pub run_dimensions: Option<HashMap<String, String>>,
+    pub is_latest: Option<bool>,
     pub tier: Option<String>,
     pub tags: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct InvokedBy {
     pub id: Option<String>,
     pub name: Option<String>,
-    pub invokedByType: Option<String>,
+    pub invoked_by_type: Option<String>,
 }
 
 impl AdfClient {
