@@ -16,6 +16,7 @@ mod shard;
 mod task;
 mod utils;
 mod api;
+mod azure;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
