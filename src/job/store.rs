@@ -12,7 +12,7 @@ use std::sync::Arc;
 pub trait JobStore: Send + Sync {
     async fn load_jobs(&self) -> Vec<JobRaw>;
     async fn update_last_run(&self, job_id: &str, dt: DateTime<Utc>);
-    async fn update_status(&self, job_id: &str, status: JobStatus);
+    async fn update_status(&self, job_id: &str, status: JobStatus, message: &str);
 }
 
 #[derive(Clone)]
@@ -65,6 +65,7 @@ impl SqliteJobStore {
                         .with_timezone(&Utc)
                 }),
                 status: status,
+                message: r.try_get("message").unwrap_or_default(),
             }))
         } else {
             Ok(None)
@@ -131,7 +132,8 @@ impl SqliteJobStore {
                 task_type TEXT NOT NULL,
                 payload TEXT,
                 last_run TEXT,
-                status TEXT DEFAULT 'start'
+                status TEXT DEFAULT 'start',
+                message TEXT DEFAULT ''
             )
             "#,
         )
@@ -171,6 +173,7 @@ impl JobStore for SqliteJobStore {
                     }),
                 status: JobStatus::from_str(r.try_get("status").unwrap_or("start"))
                     .unwrap_or(JobStatus::Start),
+                message: r.try_get("message").unwrap_or_default(),
             })
             .collect()
     }
@@ -183,9 +186,10 @@ impl JobStore for SqliteJobStore {
             .await
             .unwrap();
     }
-    async fn update_status(&self, job_id: &str, status: JobStatus) {
-        sqlx::query(r#"UPDATE jobs SET status = ? WHERE id = ?"#)
+    async fn update_status(&self, job_id: &str, status: JobStatus,message: &str) {
+        sqlx::query(r#"UPDATE jobs SET status = ? , message = ? WHERE id = ?"#)
             .bind(status.to_string())
+            .bind(message.to_string())
             .bind(job_id)
             .execute(&*self.pool)
             .await

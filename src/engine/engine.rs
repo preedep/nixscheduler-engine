@@ -1,3 +1,4 @@
+use std::fmt::format;
 use chrono::Utc;
 use log::{debug, error, info};
 use std::sync::Arc;
@@ -50,7 +51,7 @@ impl JobEngine {
         let task_registry = self.task_registry.clone();
         task_registry.print_all_handlers();
         let store = self.store.clone();
-        store.update_status(&job.id, JobStatus::Scheduled).await;
+        store.update_status(&job.id, JobStatus::Scheduled,"Preparing for start").await;
         tokio::spawn(async move {
             while let Some(next_time) = job.next_run() {
                 let dur = (next_time - Utc::now())
@@ -61,17 +62,17 @@ impl JobEngine {
                 
                 match task_registry.get(task_type.task_type_name()) {
                     Some(handler) => {
-                        store.update_status(&job.id, JobStatus::Start).await;
+                        store.update_status(&job.id, JobStatus::Start,"Starting").await;
                         info!("[{}] Executing task", job.name);
-                        store.update_status(&job.id, JobStatus::Running).await;
+                        store.update_status(&job.id, JobStatus::Running,"Running").await;
                         if let Err(e) = handler.handle(&task_type).await {
                             error!("[{}] Task error: {}", job.name, e);
-                            store.update_status(&job.id, JobStatus::Failed).await;
+                            store.update_status(&job.id, JobStatus::Failed,format!("{}",e).as_str()).await;
                         }
                     }
                     None => error!("[{}] No handler for task type '{}'", job.name, task_type),
                 }
-                store.update_status(&job.id, JobStatus::Success).await;
+                store.update_status(&job.id, JobStatus::Success,"Successful").await;
                 store.update_last_run(&job.id, Utc::now()).await;
             }
             info!("[{}] Invalid cron expression", job.name);

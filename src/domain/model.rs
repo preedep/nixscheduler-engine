@@ -55,6 +55,7 @@ pub struct Job {
     pub payload: String,
     pub last_run: Option<DateTime<Utc>>,
     pub status: JobStatus,
+    pub message: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +67,7 @@ pub struct JobRaw {
     pub payload: String,
     pub last_run: Option<DateTime<Utc>>,
     pub status: JobStatus,
+    pub message: Option<String>,
 }
 
 impl Job {
@@ -93,6 +95,7 @@ impl JobRaw {
             last_run: self.last_run,
             status: self.status.clone(),
             payload: "".to_string(),
+            message: self.message.clone(),
         })
     }
 }

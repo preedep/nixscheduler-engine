@@ -71,3 +71,9 @@ pre {
     background-color: #e5e7eb;
     color: #374151;
 }
+.error-message {
+    color: red;
+    font-size: 0.9rem;
+    margin-top: 4px;
+    white-space: pre-wrap;
+}
