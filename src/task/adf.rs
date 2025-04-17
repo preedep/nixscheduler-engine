@@ -1,9 +1,10 @@
-use crate::azure::AdfClient;
+
+use crate::azure::{AdfClient, AdfPipelineRunStatus, AdfPipelineStatus};
 use crate::domain::task_payload::TaskPayload;
 use crate::task::handler::TaskHandler;
 use async_trait::async_trait;
 use log::debug;
-
+use std::error::Error as StdError;
 
 pub struct AdfTask;
 
@@ -21,20 +22,36 @@ impl TaskHandler for AdfTask {
             adf_config.resource_group.clone(),
             adf_config.factory_name.clone(),
         )
-        .map_err(|err| err.to_string())?;
+            .map_err(|err| err.to_string())?;
 
-        let res = adf_client
+        let id = adf_client
             .trigger_pipeline_run(&adf_config.pipeline, None)
-            .await;
-        match res {
-            Ok(id) => {
-                debug!(
-                    "trigger pipeline run for {} with parameters {}",
-                    id, payload
-                );
-            }
-            Err(e) => {
-                return Err(e.to_string());
+            .await
+            .map_err(|e| e.to_string())?;
+
+        debug!(
+            "trigger pipeline run for {} with parameters {}",
+            id, payload
+        );
+
+        loop {
+            let status = adf_client
+                .get_pipeline_status(&id)
+                .await
+                .map_err(|e| e.to_string())?;
+
+            match status.status {
+                AdfPipelineStatus::Succeeded => {
+                    debug!("Pipeline run succeeded");
+                    break;
+                }
+                AdfPipelineStatus::Failed => {
+                    debug!("Pipeline run failed");
+                    return Err("Pipeline run failed".to_string());
+                }
+                _ => {
+                    debug!("Pipeline run status: {:?}", status);
+                }
             }
         }
 

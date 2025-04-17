@@ -1,3 +1,3 @@
 mod client;
 
-pub use client::AdfClient;
+pub use client::*;
