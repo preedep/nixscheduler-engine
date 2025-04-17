@@ -1,72 +1,124 @@
 const expandedGroups = new Set();
 
-async function fetchTasks() {
-    const res = await fetch('/api/jobs');
-    const tasks = await res.json();
-    const tbody = document.querySelector('#task-table tbody');
-    tbody.innerHTML = '';
+function escapeHtml(unsafe = '') {
+    return unsafe.replace(/[&<>"']/g, (match) => {
+        const escapes = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;',
+        };
+        return escapes[match];
+    });
+}
 
-    const filterText = document.getElementById('filter-input').value.toLowerCase();
-    const filtered = tasks.filter(({ name, task_type }) =>
-        name.toLowerCase().includes(filterText) || task_type.toLowerCase().includes(filterText)
-    );
-
-    document.getElementById('task-count').textContent = `${filtered.length} tasks`;
-
-    const grouped = filtered.reduce((acc, task) => {
-        (acc[task.name] ||= []).push(task);
+function buildOverview(tasks) {
+    const container = document.getElementById('job-overview');
+    container.innerHTML = '';
+    const statusGroups = tasks.reduce((acc, t) => {
+        const status = (t.status || 'unknown').toLowerCase();
+        acc[status] = (acc[status] || []);
+        acc[status].push(t);
         return acc;
     }, {});
+    Object.entries(statusGroups).forEach(([status, jobs]) => {
+        const html = `
+      <div class="card">
+        <h3>${status.toUpperCase()}</h3>
+        <p>${jobs.length} job(s)</p>
+      </div>
+    `;
+        container.insertAdjacentHTML('beforeend', html);
+    });
+}
 
-    const statusMap = {
-        start: '🟡 Start',
-        scheduled: '📅 Scheduled',
-        running: '🔄 Running',
-        success: '✅ Success',
-        failed: '❌ Failed',
-        disabled: '🚫 Disabled',
-    };
+async function fetchTasks() {
+    try {
+        const res = await fetch('/api/jobs');
+        const tasks = await res.json();
+        buildOverview(tasks);
 
-    Object.entries(grouped).forEach(([name, jobs], idx) => {
-        const toggleId = `group-${idx}`;
-        const isOpen = expandedGroups.has(toggleId);
+        const tbody = document.querySelector('#task-table tbody');
+        tbody.innerHTML = '';
 
-        const statusCounts = jobs.reduce((acc, { status = 'unknown' }) => {
-            const key = status.toLowerCase();
-            acc[key] = (acc[key] || 0) + 1;
+        const filterText = document.getElementById('filter-input').value.toLowerCase();
+        const filtered = tasks.filter(({ name = '', task_type = '' }) =>
+            name.toLowerCase().includes(filterText) || task_type.toLowerCase().includes(filterText)
+        );
+
+        document.getElementById('task-count').textContent = `${filtered.length} tasks`;
+
+        const grouped = filtered.reduce((acc, task) => {
+            const key = task.name || 'Unknown';
+            (acc[key] ||= []).push(task);
             return acc;
         }, {});
 
-        const chartHtml = Object.entries(statusCounts)
-            .map(([status, count]) => `<span class="status-badge ${status}">${statusMap[status] || status} (${count})</span>`)
-            .join(' ');
+        const statusMap = {
+            start: '🟡 Start',
+            scheduled: '📅 Scheduled',
+            running: '🔄 Running',
+            success: '✅ Success',
+            failed: '❌ Failed',
+            disabled: '🚫 Disabled',
+        };
 
-        tbody.insertAdjacentHTML('beforeend', `
-            <tr class="group-header">
-                <td colspan="6">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div><strong>${name}</strong> ${chartHtml}</div>
-                        <button onclick="toggleGroup('${toggleId}', this)">${isOpen ? '▼' : '▶'}</button>
-                    </div>
-                </td>
+        Object.entries(grouped).forEach(([name, jobs], idx) => {
+            const toggleId = `group-${idx}`;
+            const isOpen = expandedGroups.has(toggleId);
+
+            const statusCounts = jobs.reduce((acc, { status = 'unknown' }) => {
+                const key = (status || 'unknown').toLowerCase();
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+
+            const chartHtml = Object.entries(statusCounts)
+                .map(([status, count]) =>
+                    `<span class="status-badge ${status}">${statusMap[status] || status} (${count})</span>`
+                ).join(' ');
+
+            tbody.insertAdjacentHTML('beforeend', `
+        <tr class="group-header">
+          <td colspan="6">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div><strong>${escapeHtml(name)}</strong> ${chartHtml}</div>
+              <button onclick="toggleGroup('${toggleId}', this)">${isOpen ? '▼' : '▶'}</button>
+            </div>
+          </td>
+        </tr>
+      `);
+
+            jobs.sort((a, b) => new Date(b.last_run || 0) - new Date(a.last_run || 0))
+                .forEach(({ task_type = '-', status = 'unknown', last_run, payload, message, execution_count = 0 }) => {
+                    const statusKey = status.toLowerCase();
+                    const displayStatus = statusMap[statusKey] || statusKey;
+                    const safeMessage = message?.trim() ? escapeHtml(message.trim()) : '';
+                    const errorMessageHtml = safeMessage
+                        ? `<div class="error-message">💬 ${safeMessage}</div>`
+                        : '';
+
+                    tbody.insertAdjacentHTML('beforeend', `
+            <tr class="${toggleId}" style="display: ${isOpen ? '' : 'none'};">
+              <td></td>
+              <td>${escapeHtml(task_type)}</td>
+              <td><span class="status ${statusKey}">${displayStatus}</span></td>
+              <td>${last_run || '-'}</td>
+              <td>
+                <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
+                ${errorMessageHtml}
+              </td>
+              <td>${execution_count}</td>
             </tr>
-        `);
-
-        jobs.sort((a, b) => new Date(b.last_run || 0) - new Date(a.last_run || 0))
-            .forEach(({ task_type, status = 'unknown', last_run, payload, execution_count = 0 }) => {
-                const displayStatus = statusMap[status.toLowerCase()] || status;
-                tbody.insertAdjacentHTML('beforeend', `
-                    <tr class="${toggleId}" style="display: ${isOpen ? '' : 'none'};">
-                        <td></td>
-                        <td>${task_type}</td>
-                        <td><span class="status ${status.toLowerCase()}">${displayStatus}</span></td>
-                        <td>${last_run || '-'}</td>
-                        <td><pre>${JSON.stringify(payload, null, 2)}</pre></td>
-                        <td>${execution_count}</td>
-                    </tr>
-                `);
-            });
-    });
+          `);
+                });
+        });
+    } catch (error) {
+        console.error('Error fetching tasks:', error);
+        const tbody = document.querySelector('#task-table tbody');
+        tbody.innerHTML = '<tr><td colspan="6" style="color:red;">Failed to load tasks.</td></tr>';
+    }
 }
 
 function toggleGroup(groupClass, btn) {
@@ -79,14 +131,16 @@ function toggleGroup(groupClass, btn) {
 
 function setupFilterBar() {
     document.querySelector('main').insertAdjacentHTML('afterbegin', `
-        <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-            <input id="filter-input" type="text" placeholder="Filter by name or type..." style="padding: 0.5rem; width: 300px; font-size: 1rem;">
-            <span id="task-count" style="font-weight: bold;"></span>
-        </div>
-    `);
+    <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+      <input id="filter-input" type="text" placeholder="Filter by name or type..." style="padding: 0.5rem; width: 300px; font-size: 1rem;">
+      <span id="task-count" style="font-weight: bold;"></span>
+    </div>
+  `);
     document.getElementById('filter-input').addEventListener('input', fetchTasks);
 }
 
-setupFilterBar();
-fetchTasks();
-setInterval(fetchTasks, 10000);
+document.addEventListener('DOMContentLoaded', () => {
+    setupFilterBar();
+    fetchTasks();
+    setInterval(fetchTasks, 10000); // Refresh every 10 seconds
+});

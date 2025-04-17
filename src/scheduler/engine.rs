@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::config::AppConfig;
-use crate::job::model::Job;
+use crate::domain::model::Job;
 use crate::job::store::JobStore;
 use crate::scheduler::wheel::Scheduler;
 use crate::shard::ShardManager;
