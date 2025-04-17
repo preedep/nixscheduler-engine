@@ -50,4 +50,6 @@ pub struct ShellCommandConfig {
     pub command: String,
 }
 #[derive(Debug,Clone, Deserialize, Serialize)]
-pub struct PrintConfig; 
+pub struct PrintConfig {
+    pub message: String,
+}
