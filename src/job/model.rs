@@ -45,11 +45,8 @@ impl std::str::FromStr for JobStatus {
 }
 
 #[derive(Debug, Clone)]
-pub struct Pipeline {
-    pub id: String,
-    pub name: String,
-    pub jobs: Vec<Job>, // Job List ใน Pipeline
-    pub is_sequential: bool, // true = sequential, false = parallel
+pub struct AdfJob {
+    
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +58,7 @@ pub struct Job {
     pub payload: String,
     pub last_run: Option<DateTime<Utc>>,
     pub status: JobStatus,
+    pub adf_job: Option<AdfJob>
 }
 
 impl Job {

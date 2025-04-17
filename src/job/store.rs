@@ -63,7 +63,8 @@ impl SqliteJobStore {
                 last_run: r
                     .try_get::<Option<String>, _>("last_run")?
                     .map(|s| DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)),
-                status: status
+                status: status,
+                adf_job: None,
             }))
         } else {
             Ok(None)
@@ -167,7 +168,8 @@ impl JobStore for SqliteJobStore {
                             .unwrap()
                             .with_timezone(&Utc)
                     }),
-                status: JobStatus::from_str(r.try_get("status").unwrap_or("start")).unwrap_or(Start)
+                status: JobStatus::from_str(r.try_get("status").unwrap_or("start")).unwrap_or(Start),
+                adf_job: None,
             })
             .collect()
     }

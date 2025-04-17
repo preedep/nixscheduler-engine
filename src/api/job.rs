@@ -86,6 +86,7 @@ async fn create_job(
         payload: data.payload.clone(),
         last_run: None,
         status: JobStatus::Scheduled,
+        adf_job: None,
     };
 
     store.insert_job(&job).await?;
@@ -133,6 +134,7 @@ async fn update_job(
         payload: data.payload.clone(),
         last_run: Some(Utc::now()),
         status: JobStatus::Scheduled,
+        adf_job: None,
     };
 
     store.update_job(&job).await?;

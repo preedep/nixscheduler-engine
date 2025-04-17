@@ -1,10 +1,7 @@
-use std::error::Error;
 use async_trait::async_trait;
 use log::debug;
-use sqlx::encode::IsNull::No;
 use crate::azure::AdfClient;
 use crate::task::handler::TaskHandler;
-use crate::task::print::PrintTask;
 
 pub struct AdfTask;
 
@@ -15,6 +12,9 @@ impl TaskHandler for AdfTask{
     }
 
     async fn handle(&self, payload: &str) -> Result<(), String> {
+
+
+        let v = serde_json::from_str::<serde_json::Value>(payload).map_err(|err| err.to_string())?;
         
         let subscription_id = "";
         let resource_group = "";
