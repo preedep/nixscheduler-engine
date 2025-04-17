@@ -50,13 +50,13 @@ impl JobEngine {
                     .to_std()
                     .unwrap_or(Duration::from_secs(1));
                 sleep(dur).await;
-                let task_type = job.task_type.clone().task_type_name();
-                match task_registry.get(task_type) {
+                let task_type = job.task_type.clone();
+                match task_registry.get(task_type.task_type_name()) {
                     Some(handler) => {
                         store.update_status(&job.id, JobStatus::Start).await;
                         info!("[{}] Executing task", job.name);
                         store.update_status(&job.id, JobStatus::Running).await;
-                        if let Err(e) = handler.handle(&job.payload).await {
+                        if let Err(e) = handler.handle(&task_type).await {
                             error!("[{}] Task error: {}", job.name, e);
                             store.update_status(&job.id, JobStatus::Failed).await;
                         }

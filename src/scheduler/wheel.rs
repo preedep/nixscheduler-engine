@@ -73,6 +73,7 @@ impl Scheduler {
                 }
                 
                 let task_type = scheduled.job.task_type.clone().task_type_name();
+                let job = scheduled.job.clone();
                 // run task
                 let handler_opt = self.task_registry.get(task_type);
                 if let Some(handler) = handler_opt {
@@ -80,11 +81,12 @@ impl Scheduler {
                     let job_name = scheduled.job.name.clone();
                     let job_id = scheduled.job.id.clone();
                     let store = self.store.clone();
-
+                    
 
                     tokio::spawn(async move {
                         info!("[{}] Execution with Payload: {:?}", job_name, payload);
-                        if let Err(err) = handler.handle(&payload).await {
+                        
+                        if let Err(err) = handler.handle(&job.task_type).await {
                             error!("[{}] Error: {}", job_name, err);
                         }
                         store.update_last_run(&job_id, Utc::now()).await;

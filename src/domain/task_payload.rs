@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug,Clone, serde::Deserialize, serde::Serialize)]
@@ -21,6 +22,12 @@ impl TaskPayload {
             TaskPayload::ShellCommand(_) => "shell_command",
             TaskPayload::Print(_) => "print",
         }
+    }
+}
+
+impl Display for TaskPayload {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.task_type_name().fmt(f)
     }
 }
 
