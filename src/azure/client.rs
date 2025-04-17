@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use azure_core::credentials::TokenCredential;
+use std::fmt::Display;
 use std::sync::Arc;
 
 use azure_identity::DefaultAzureCredential;
@@ -15,7 +15,7 @@ pub struct AdfClient {
     pub client: Client,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq,Serialize,Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AdfPipelineStatus {
     Queued,
     InProgress,
@@ -100,14 +100,16 @@ impl AdfClient {
         resource_group: String,
         factory_name: String,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-
         debug!("Checking environment variables...");
         debug!("AZURE_CLIENT_ID: {:?}", std::env::var("AZURE_CLIENT_ID"));
         debug!("AZURE_TENANT_ID: {:?}", std::env::var("AZURE_TENANT_ID"));
-        debug!("AZURE_CLIENT_SECRET: {:?}", std::env::var("AZURE_CLIENT_SECRET").map(|s| "***".to_string()));
-        
+        debug!(
+            "AZURE_CLIENT_SECRET: {:?}",
+            std::env::var("AZURE_CLIENT_SECRET").map(|s| "***".to_string())
+        );
+
         let credential = DefaultAzureCredential::new()?;
-        
+
         Ok(Self {
             subscription_id,
             resource_group,
@@ -135,7 +137,7 @@ impl AdfClient {
                     self.subscription_id, self.resource_group, self.factory_name, pipeline_name
                 );
                 debug!("url: {}", url);
-                
+
                 let body = if let Some(params) = parameters {
                     json!({ "parameters": params })
                 } else {
@@ -160,7 +162,7 @@ impl AdfClient {
                     let err_msg = format!("Failed to trigger pipeline run: {}", err_text);
                     Err(err_msg.into())
                 }
-            },
+            }
             Err(e) => {
                 let err_msg = format!("Failed to acquire token: {}", e);
                 return Err(err_msg.into());
@@ -171,7 +173,6 @@ impl AdfClient {
         &self,
         run_id: &str,
     ) -> Result<AdfPipelineRunStatus, Box<dyn std::error::Error>> {
-        
         let token_response = self
             .credential
             .get_token(&["https://management.azure.com/.default"])
@@ -194,12 +195,12 @@ impl AdfClient {
                 if res.status().is_success() {
                     let res = res.json::<AdfPipelineRunStatus>().await?;
                     Ok(res)
-                }else{
+                } else {
                     let err_text = res.text().await?;
                     let err_msg = format!("Failed to get pipeline status: {}", err_text);
                     Err(err_msg.into())
                 }
-            },
+            }
             Err(e) => {
                 let err_msg = format!("Failed to acquire token: {}", e);
                 Err(err_msg.into())

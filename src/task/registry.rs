@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use log::debug;
 use crate::task::handler::TaskHandler;
 use crate::task::print::PrintTask;
+use log::debug;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 pub struct TaskRegistry {
     handlers: HashMap<String, Arc<dyn TaskHandler>>,

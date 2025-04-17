@@ -186,7 +186,7 @@ impl JobStore for SqliteJobStore {
             .await
             .unwrap();
     }
-    async fn update_status(&self, job_id: &str, status: JobStatus,message: &str) {
+    async fn update_status(&self, job_id: &str, status: JobStatus, message: &str) {
         sqlx::query(r#"UPDATE jobs SET status = ? , message = ? WHERE id = ?"#)
             .bind(status.to_string())
             .bind(message.to_string())

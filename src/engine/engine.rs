@@ -1,6 +1,6 @@
-use std::fmt::format;
 use chrono::Utc;
 use log::{debug, error, info};
+use std::fmt::format;
 use std::sync::Arc;
 use tokio::time::{Duration, sleep};
 
@@ -51,7 +51,9 @@ impl JobEngine {
         let task_registry = self.task_registry.clone();
         task_registry.print_all_handlers();
         let store = self.store.clone();
-        store.update_status(&job.id, JobStatus::Scheduled,"Preparing for start").await;
+        store
+            .update_status(&job.id, JobStatus::Scheduled, "Preparing for start")
+            .await;
         tokio::spawn(async move {
             while let Some(next_time) = job.next_run() {
                 let dur = (next_time - Utc::now())
@@ -59,20 +61,33 @@ impl JobEngine {
                     .unwrap_or(Duration::from_secs(1));
                 sleep(dur).await;
                 let task_type = job.task_type.clone();
-                
+
                 match task_registry.get(task_type.task_type_name()) {
                     Some(handler) => {
-                        store.update_status(&job.id, JobStatus::Start,"Starting").await;
+                        store
+                            .update_status(&job.id, JobStatus::Start, "Starting")
+                            .await;
                         info!("[{}] Executing task", job.name);
-                        store.update_status(&job.id, JobStatus::Running,"Running").await;
+                        store
+                            .update_status(&job.id, JobStatus::Running, "Running")
+                            .await;
                         if let Err(e) = handler.handle(&task_type).await {
                             error!("[{}] Task error: {}", job.name, e);
-                            store.update_status(&job.id, JobStatus::Failed,format!("{}",e).as_str()).await;
+                            store
+                                .update_status(
+                                    &job.id,
+                                    JobStatus::Failed,
+                                    format!("{}", e).as_str(),
+                                )
+                                .await;
+                        }else{
+                            store
+                                .update_status(&job.id, JobStatus::Success, "Successful")
+                                .await;
                         }
                     }
                     None => error!("[{}] No handler for task type '{}'", job.name, task_type),
                 }
-                store.update_status(&job.id, JobStatus::Success,"Successful").await;
                 store.update_last_run(&job.id, Utc::now()).await;
             }
             info!("[{}] Invalid cron expression", job.name);

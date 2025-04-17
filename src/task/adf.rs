@@ -1,4 +1,3 @@
-
 use crate::azure::{AdfClient, AdfPipelineRunStatus, AdfPipelineStatus};
 use crate::domain::task_payload::TaskPayload;
 use crate::task::handler::TaskHandler;
@@ -22,7 +21,7 @@ impl TaskHandler for AdfTask {
             adf_config.resource_group.clone(),
             adf_config.factory_name.clone(),
         )
-            .map_err(|err| err.to_string())?;
+        .map_err(|err| err.to_string())?;
 
         let id = adf_client
             .trigger_pipeline_run(&adf_config.pipeline, None)
@@ -47,14 +46,16 @@ impl TaskHandler for AdfTask {
                 }
                 AdfPipelineStatus::Failed => {
                     debug!("Pipeline run failed");
-                    return Err("Pipeline run failed".to_string());
+                    let error_message = status.message.unwrap_or("Pipeline run failed".to_string());
+                    return Err(error_message);
                 }
                 _ => {
                     debug!("Pipeline run status: {:?}", status);
                 }
             }
-        }
 
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        }
         Ok(())
     }
 }
