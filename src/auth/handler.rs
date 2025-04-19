@@ -82,7 +82,7 @@ pub async fn login() -> impl Responder {
         .finish()
 }
 
-#[get("/logout")]
+#[post("/logout")]
 pub async fn logout() -> impl Responder {
     debug!("Logout");
     
