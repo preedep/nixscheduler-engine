@@ -1,7 +1,8 @@
 use std::env;
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{get, web, HttpResponse, Responder, Scope};
 use urlencoding::encode;
 use uuid::Uuid;
+use crate::api::{create_job, delete_job, get_job_by_id, list_jobs, update_job};
 
 /// GET /auth/login
 #[get("/login")]
@@ -29,4 +30,9 @@ pub async fn login() -> impl Responder {
     HttpResponse::Found()
         .append_header(("Location", redirect_url))
         .finish()
+}
+
+pub fn auth_routes() -> Scope {
+    web::scope("/auth")
+        .service(login)
 }

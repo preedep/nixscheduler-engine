@@ -7,6 +7,7 @@ use actix_files::Files;
 use actix_web::{App, HttpServer, main, web};
 use log::{debug, info};
 use std::sync::Arc;
+use crate::auth::auth_routes;
 
 mod api;
 mod azure;
@@ -64,6 +65,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(store.clone()))
             .app_data(web::Data::new(engine.clone()))
             .service(web::scope("/api").service(job_routes()))
+            .service(auth_routes())
             .service(Files::new("/", "./statics").index_file("index.html"))
     })
     .bind(("0.0.0.0", 8888))?
