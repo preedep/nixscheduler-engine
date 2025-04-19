@@ -130,72 +130,75 @@ pub async fn logout() -> impl Responder {
 }
 
 #[post("/callback")]
-pub async fn callback(form: web::Form<OidcCallbackForm>,
-                      req: HttpRequest) -> impl Responder {
-    // 🧱 Step 1: ตรวจสอบว่ามี error กลับมาจาก IDP หรือไม่
+pub async fn callback(form: web::Form<OidcCallbackForm>, req: HttpRequest) -> impl Responder {
     debug!("OIDC Callback Form: {:#?}", form);
+
     if let Some(error) = &form.error {
-        let description = form.error_description.clone().unwrap_or_default();
         return HttpResponse::BadRequest().body(format!(
             "OIDC Error: {} - {}",
-            error, description
+            error,
+            form.error_description.clone().unwrap_or_default()
         ));
     }
+
     let tenant_id = env::var("AZURE_TENANT_ID").expect("Missing AZURE_TENANT_ID");
     let client_id = env::var("OIDC_CLIENT_ID").expect("Missing OIDC_CLIENT_ID");
-    let metadata = fetch_metadata(&tenant_id).await;
-    let metadata = match metadata {
+    let metadata = match fetch_metadata(&tenant_id).await {
         Ok(metadata) => metadata,
         Err(e) => {
             error!("Error fetching OIDC metadata: {}", e);
             return HttpResponse::InternalServerError().finish();
         }
     };
-    return if let Some(id_token) = &form.id_token {
-        
+
+    if let Some(id_token) = &form.id_token {
         debug!("ID Token: {}", id_token);
-        // Extract nonce from secure cookie
-        let nonce_cookie = req.cookie(COOKIE_OIDC_NONCE);
-        debug!("Nonce Cookie: {:?}", nonce_cookie);
-        
-        let expected_nonce = match nonce_cookie {
+
+        let expected_nonce = match req.cookie(COOKIE_OIDC_NONCE) {
             Some(cookie) => cookie.value().to_string(),
             None => return HttpResponse::BadRequest().body("Missing nonce cookie"),
         };
-        
+
         debug!("Expected nonce: {}", expected_nonce);
-        let id = verify_id_token(id_token,
-                                 &client_id, expected_nonce.as_str(),
-                                 &metadata.jwks_uri,
-                                 &metadata.issuer).await.map_err(|e| {
-            error!("Error verifying ID token: {}", e);
-            HttpResponse::Unauthorized().body("Invalid ID token")
-        });
-        let id = match id {
+
+        let id = match verify_id_token(
+            id_token,
+            &client_id,
+            &expected_nonce,
+            &metadata.jwks_uri,
+            &metadata.issuer,
+        )
+            .await
+        {
             Ok(id) => id,
-            Err(e) => return e,
+            Err(e) => {
+                error!("Error verifying ID token: {}", e);
+                return HttpResponse::Unauthorized().body("Invalid ID token");
+            }
         };
+
         debug!("ID Token Claims: {:#?}", id);
 
         if let Some(access_token) = &form.access_token {
             debug!("Access Token: {}", access_token);
-            let cookie = Cookie::build(COOKIE_ACCESS_TOKEN, access_token.as_str())
+
+            let cookie = Cookie::build(COOKIE_ACCESS_TOKEN, access_token)
                 .http_only(true)
                 .secure(true)
                 .path("/")
                 .max_age(time::Duration::minutes(30))
                 .finish();
 
-            HttpResponse::Found()
+            return HttpResponse::Found()
                 .append_header(("Location", "/index.html"))
                 .cookie(cookie)
-                .finish()
-        } else {
-            HttpResponse::BadRequest().body("Missing access_token")
+                .finish();
         }
-    }else {
-        HttpResponse::BadRequest().body("Missing id_token")
+
+        return HttpResponse::BadRequest().body("Missing access_token");
     }
+
+    HttpResponse::BadRequest().body("Missing id_token")
 }
 
 pub fn auth_routes() -> Scope {
