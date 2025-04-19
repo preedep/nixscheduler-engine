@@ -18,6 +18,7 @@ mod scheduler;
 mod shard;
 mod task;
 mod utils;
+mod auth;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
