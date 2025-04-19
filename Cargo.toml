@@ -29,6 +29,7 @@ azure_identity = {version = "0.23" , default-features = false, features = ["reqw
 jsonwebtoken =  "9.3"
 urlencode = "1"
 urlencoding = "2.1.3"
+time = "0.3.41"
 
 #build for release
 [profile.release]

@@ -11,3 +11,25 @@ pub struct OidcMetadata {
     pub response_modes_supported: Vec<String>,
     pub scopes_supported: Option<Vec<String>>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct IdTokenClaims {
+    sub: String,
+    email: Option<String>,
+    name: Option<String>,
+    nonce: Option<String>,
+    aud: String,
+    iss: String,
+    exp: usize,
+    iat: usize,
+}
+
+impl IdTokenClaims {
+    pub fn is_nonce_valid(&self, expected_nonce: &str) -> bool {
+        if let Some(nonce) = &self.nonce {
+            nonce == expected_nonce
+        } else {
+            false
+        }
+    }
+}
