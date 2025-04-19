@@ -9,6 +9,9 @@ use uuid::Uuid;
 use crate::auth::oidc::{fetch_metadata, verify_id_token};
 
 static COOKIE_OIDC_NONCE: &str = "oidc_nonce";
+static COOKIE_ACCESS_TOKEN: &str = "access_token";
+
+static COOKIE_LOGGED_STATE: &str = "logged_in";
 #[derive(Debug, Deserialize)]
 pub struct OidcCallbackForm {
     code: Option<String>,
@@ -16,6 +19,7 @@ pub struct OidcCallbackForm {
     error: Option<String>,
     id_token: Option<String>,
     access_token: Option<String>,
+    refresh_token: Option<String>,
     expires_in: Option<String>,
     token_type: Option<String>,
     scope: Option<String>,
@@ -49,7 +53,7 @@ pub async fn login() -> impl Responder {
     
     // สร้าง URL เพื่อ redirect ไปยัง Authorization Endpoint (Entra ID หรืออื่น ๆ)
     let redirect_url = format!(
-        "{}?response_type=id_token&client_id={}&redirect_uri={}&scope={}&state={}&response_mode=form_post&nonce={}",
+        "{}?response_type=id_token%20token&client_id={}&redirect_uri={}&scope={}&state={}&response_mode=form_post&nonce={}",
         authorization_endpoint,
         encode(&client_id),
         encode(&redirect_uri),
@@ -72,7 +76,7 @@ pub async fn login() -> impl Responder {
         .append_header(("Location", redirect_url))
         .cookie(cookie)
         .cookie(
-            Cookie::build("logged_in", "true")
+            Cookie::build(COOKIE_LOGGED_STATE, "true")
                 .path("/")
                 .secure(true)
                 .http_only(false) // ต้อง false ถ้าให้ JS เห็น cookie
@@ -106,6 +110,7 @@ pub async fn logout() -> impl Responder {
         .max_age(time::Duration::seconds(0))
         .finish();
 
+    
     if let Some(logout_url) = metadata.end_session_endpoint {
         
         let app_login_url = env::var("APP_LOGIN_URL").expect("Missing APP_LOGIN_URL");
@@ -146,7 +151,8 @@ pub async fn callback(form: web::Form<OidcCallbackForm>,
             return HttpResponse::InternalServerError().finish();
         }
     };
-    if let Some(id_token) = &form.id_token {
+    return if let Some(id_token) = &form.id_token {
+        
         debug!("ID Token: {}", id_token);
         // Extract nonce from secure cookie
         let nonce_cookie = req.cookie(COOKIE_OIDC_NONCE);
@@ -164,14 +170,31 @@ pub async fn callback(form: web::Form<OidcCallbackForm>,
                                  &metadata.issuer).await.map_err(|e| {
             error!("Error verifying ID token: {}", e);
             HttpResponse::Unauthorized().body("Invalid ID token")
-        }).unwrap();
+        });
+        let id = match id {
+            Ok(id) => id,
+            Err(e) => return e,
+        };
         debug!("ID Token Claims: {:#?}", id);
-        // finish login process 
-        return HttpResponse::Found()
-            .append_header(("Location", "/index.html"))
-            .finish();
+
+        if let Some(access_token) = &form.access_token {
+            debug!("Access Token: {}", access_token);
+            let cookie = Cookie::build(COOKIE_ACCESS_TOKEN, access_token.as_str())
+                .http_only(true)
+                .secure(true)
+                .path("/")
+                .max_age(time::Duration::minutes(30))
+                .finish();
+
+            HttpResponse::Found()
+                .append_header(("Location", "/index.html"))
+                .cookie(cookie)
+                .finish()
+        } else {
+            HttpResponse::BadRequest().body("Missing access_token")
+        }
     }else {
-        return HttpResponse::BadRequest().body("Missing id_token");
+        HttpResponse::BadRequest().body("Missing id_token")
     }
 }
 
