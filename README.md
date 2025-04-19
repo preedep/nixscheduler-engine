@@ -1,23 +1,25 @@
 # NiX Scheduler-Engine
-## NiX Scheduler-Engine is scheduler engine for Rust (Enterprise Grade).
 
-A high-performance, pluggable, and scalable job scheduler engine written in Rust 🚀  
-Supports cron expressions, priority timer wheel, sharded execution, and extensible task plugins.
+## Enterprise-Grade Job Scheduler Engine in Rust
+
+NiX Scheduler-Engine is a high-performance, enterprise-ready job scheduling engine written in Rust ✨. It follows Clean Architecture principles and supports cron expressions, priority timer wheel, multi-shard execution, and a pluggable task system.
+
+Now includes secure **login via Microsoft Entra ID (OIDC)** and seamless integration with Azure services like Azure Data Factory (ADF).
 
 ---
 
 ## 🛠 Features
 
-- ✅ **Cron Expression Support** (via `cron` crate)
-- ✅ **Priority Timer Wheel** using `BinaryHeap` + `tokio::time`
-- ✅ **Task Plugin System** (e.g. `print`, `http`, `shell`, WASM-ready)
-- ✅ **Sharding Support**
-    - Local shard (multi-thread)
-    - Distributed shard (multi-node)
-- ✅ **Dependency Injection** for clean architecture
-- ✅ **SQLite-backed JobStore** (PostgreSQL-ready)
-- ✅ **Compile-time SQL Check** (optional via `sqlx-cli`)
-- ✅ Easily testable and maintainable
+- ✅ Cron Expression Scheduling (`cron` crate)
+- ✅ Priority Timer Wheel (`BinaryHeap + tokio`)
+- ✅ Pluggable Task System (HTTP, Shell, Print, WASM-ready)
+- ✅ Local and Distributed Sharding
+- ✅ SQLite Job Store (PostgreSQL-ready)
+- ✅ Compile-time SQL validation (`sqlx`)
+- ✅ Login with Microsoft Entra ID (OpenID Connect)
+- ✅ Web Dashboard UI (HTML + JS)
+- ✅ Federated Logout
+- ✅ Secure Cookie and Session Management
 
 ---
 
@@ -26,12 +28,14 @@ Supports cron expressions, priority timer wheel, sharded execution, and extensib
 ```text
 src/
 ├── main.rs                # Entry point
-├── config.rs              # AppConfig with DI
+├── config.rs              # Application configuration / DI
 ├── engine/                # JobEngine orchestration logic
-├── job/                   # Job model + persistent store
-├── scheduler/             # Timer wheel + priority queue
-├── shard/                 # Local / Distributed sharding logic
-├── task/                  # TaskHandler, Registry, Plugins
+├── job/                   # Job model and database
+├── scheduler/             # Priority timer wheel and tick loop
+├── shard/                 # Local and distributed sharding logic
+├── task/                  # Task handler implementations and registry
+├── auth/                  # OIDC login, callback, logout handlers
+├── web/                   # Actix Web API routes and frontend
 ```
 
 ---
@@ -39,84 +43,68 @@ src/
 ## 📦 Quick Start
 
 ```bash
-# Clone & run
-git clone https://github.com/yourname/rust-scheduler-engine.git
-cd rust-scheduler-engine
+# Clone the project
+git clone https://github.com/preedep/nixscheduler-engine.git
+cd nixscheduler-engine
 
-# Run with SQLite
+# Run using SQLite
 cargo run
 ```
 
-Set `.env` for distributed config:
+### 🧪 Sample `.env` (non-secret values)
 
 ```env
-SHARD_MODE=distributed
+# Scheduler mode: local or distributed
+SHARD_MODE=local
 SHARD_ID=0
 TOTAL_SHARDS=4
+
+# Database configuration
 DATABASE_URL=sqlite://./data/jobs.db
+TICK_INTERVAL_SECS=1
+
+# ADF Integration (service principal auth)
+AZURE_CLIENT_ID=<your-client-id>
+AZURE_TENANT_ID=<your-tenant-id>
+AZURE_CLIENT_SECRET=<your-client-secret>
+
+# Microsoft Entra ID (OIDC)
+OIDC_CLIENT_ID=<your-client-id>
+OIDC_REDIRECT_URI=http://localhost:8888/auth/callback
+OIDC_AUTH_URL=https://login.microsoftonline.com/<your-tenant-id>/oauth2/v2.0/authorize
+OIDC_SCOPES=openid profile email
+
+# Login page URL
+APP_LOGIN_URL=http://localhost:8888/login.html
+```
+
+> ⚠️ **Do not include secrets like `AZURE_CLIENT_SECRET` or `OIDC_CLIENT_SECRET` in public repos.** Use `.env` or a secure secrets manager.
+
+---
+
+## 📌 Architecture Diagram
+
+### 🔧 Core Flow
+
+```mermaid
+flowchart TD
+    Start[Engine Start] --> Init[Init Config + Store + Registry]
+    Init --> LoadJobs[Load Jobs from DB]
+    LoadJobs --> ShardFilter[Filter Local Jobs]
+    ShardFilter --> Loop[Loop + Schedule]
+
+    subgraph JobScheduler
+        Loop --> WaitNext[Wait for cron]
+        WaitNext --> CheckHandler{Handler Exists?}
+        CheckHandler -- Yes --> Execute[Execute Task]
+        CheckHandler -- No --> LogErr[Log Error]
+        Execute --> Update[Update Status & last_run]
+    end
 ```
 
 ---
 
-## 📌 Mermaid Architecture Diagram
-
-```mermaid
-flowchart TD
-    subgraph CoreEngine [Scheduler Engine]
-        C1[JobEngine]
-        C2["Scheduler: Priority Wheel"]
-        C3[TaskRegistry]
-        C4["JobStore: SQLite"]
-        C5[ShardManager]
-    end
-
-    subgraph TaskPlugins
-        T1[PrintTask]
-        T2[HttpTask]
-        T3[ShellTask]
-    end
-
-    C1 --> C2
-    C1 --> C3
-    C1 --> C4
-    C1 --> C5
-
-    C3 --> T1
-    C3 --> T2
-    C3 --> T3
-
-    C2 -->|tick| TaskExecution[Execute Job via TaskHandler]
-    TaskExecution --> C4
-```
-## 📌 Mermaid Architecture Diagram - JobEngine
-```mermaid
-flowchart TD
-    Start[Engine Start] --> Init[Load Config + Store + Shard + Registry]
-    Init --> LoadJobs[Load jobs from store]
-    LoadJobs --> ShardFilter[Filter local jobs]
-    ShardFilter --> ScheduleLoop[Loop over jobs and schedule]
-
-    
-    subgraph Job_Scheduling
-        ScheduleLoop --> SetScheduled[Set status: Scheduled]
-        SetScheduled --> WaitNext[Wait for cron time]
-        WaitNext --> CheckHandler{Handler exists?}
-        CheckHandler -- Yes --> SetStart[Set status: Start]
-        CheckHandler -- No --> LogMissing[Log error: No handler]
-
-        SetStart --> SetRunning[Set status: Running]
-        SetRunning --> Execute[Execute task]
-
-        Execute -- Success --> SetSuccess[Set status: Success]
-        Execute -- Failed --> SetFailed[Set status: Failed]
-
-        SetSuccess --> UpdateLastRun[Update last_run timestamp]
-        SetFailed --> UpdateLastRun
-    end
-```
----
-
-## 💡 Example Job Format
+## 💡 Job Table Schema
 
 ```sql
 CREATE TABLE jobs (
@@ -129,23 +117,25 @@ CREATE TABLE jobs (
 );
 ```
 
+### Example Job
+
 ```json
 {
-  "id": "job-123",
+  "id": "job-hello",
   "name": "print-hello",
   "cron": "* * * * * * *",
   "task_type": "print",
-  "payload": "Hello from Rust!",
+  "payload": "Hello, NiX!",
   "last_run": null
 }
 ```
 
 ---
 
-## 📚 Extending with Your Own Task
+## 🔌 Add Custom Task
 
-1. Implement `TaskHandler` trait.
-2. Register it in `TaskRegistry`.
+1. Implement the `TaskHandler` trait.
+2. Register your task in the registry.
 
 ```rust
 registry.register(MyCustomTask {});
@@ -153,16 +143,51 @@ registry.register(MyCustomTask {});
 
 ---
 
-## ✅ Todo & Enhancements
+## 🛰 Example: Create Azure ADF Job via `curl`
 
-- [ ] Task Timeout & Retry Policy
-- [ ] WASM Plugin Runtime
-- [ ] REST API with Actix or Axum
-- [ ] Dashboard UI for Monitoring
-- [ ] Clustered Leader Election via etcd or Redis
+```bash
+curl -v -X POST http://localhost:8888/api/jobs   -H "Content-Type: application/json"   -d '{
+    "name": "Task-ADF-LogicAppSuccess",
+    "cron": "0 */1 * * * *",
+    "task_type": "adf_pipeline",
+    "payload": "{ \"subscription_id\": \"9d3ff024-cfad-4108-a098-8e675fbc4cc4\", \"resource_group\": \"RG-SG-NICKDEV001\", \"factory_name\": \"MyNICKADF001\", \"pipeline\": \"logic-app-success\", \"parameters\": { \"message\": \"Hello, World!\" } }"
+}'
+```
+
+---
+
+## ✅ Roadmap
+
+- [ ] Task Retry and Timeout Policy
+- [ ] WASM Plugin Runtime Support
+- [ ] REST API (via Actix or Axum)
+- [ ] Enhanced UI Dashboard
+- [ ] Clustered Leader Election (via etcd or Redis)
+
+---
+
+## 🧑‍💼 Authentication & Login Flow
+
+- Microsoft Entra ID (OIDC) Login
+- Nonce + State CSRF Protection
+- `id_token` validation via JWKS
+- Federated Logout (`end_session_endpoint`)
+- Frontend login page with redirect support
+
+---
+
+## 🛡 Security Notes
+
+- Secure cookies (`HttpOnly`, `Secure`)
+- Login required to access dashboard and APIs
+- `.env` should be excluded from version control
 
 ---
 
 ## 📜 License
 
 MIT
+
+---
+
+> ⭐ Star this repository if you find it useful. Contributions welcome!
