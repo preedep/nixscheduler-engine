@@ -1,11 +1,12 @@
 use azure_core::credentials::TokenCredential;
-use std::fmt::Display;
-use std::sync::Arc;
-
 use azure_identity::DefaultAzureCredential;
 use log::debug;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::sync::Arc;
 
 pub struct AdfClient {
     pub subscription_id: String,
@@ -26,7 +27,7 @@ pub enum AdfPipelineStatus {
     TimedOut,
     Skipped,
     WaitingOnDependency,
-    Unknown(String), // เผื่ออนาคตมีสถานะอื่น
+    Unknown(String),
 }
 
 impl From<&str> for AdfPipelineStatus {
@@ -45,27 +46,27 @@ impl From<&str> for AdfPipelineStatus {
         }
     }
 }
+
 impl Display for AdfPipelineStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let str = match self {
-            AdfPipelineStatus::Queued => "Queued",
-            AdfPipelineStatus::InProgress => "InProgress",
-            AdfPipelineStatus::Succeeded => "Succeeded",
-            AdfPipelineStatus::Failed => "Failed",
-            AdfPipelineStatus::Cancelled => "Cancelled",
-            AdfPipelineStatus::Canceling => "Canceling",
-            AdfPipelineStatus::TimedOut => "TimedOut",
-            AdfPipelineStatus::Skipped => "Skipped",
-            AdfPipelineStatus::WaitingOnDependency => "WaitingOnDependency",
-            AdfPipelineStatus::Unknown(s) => s,
-        }
-        .to_string();
-        write!(f, "{}", str)
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Queued => "Queued",
+                Self::InProgress => "InProgress",
+                Self::Succeeded => "Succeeded",
+                Self::Failed => "Failed",
+                Self::Cancelled => "Cancelled",
+                Self::Canceling => "Canceling",
+                Self::TimedOut => "TimedOut",
+                Self::Skipped => "Skipped",
+                Self::WaitingOnDependency => "WaitingOnDependency",
+                Self::Unknown(s) => s,
+            }
+        )
     }
 }
-
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -75,7 +76,7 @@ pub struct AdfPipelineRunStatus {
     pub pipeline_name: String,
     pub parameters: Option<HashMap<String, String>>,
     pub invoked_by: Option<InvokedBy>,
-    pub run_start: Option<String>, // หรือใช้ Option<DateTime<Utc>>
+    pub run_start: Option<String>,
     pub run_end: Option<String>,
     pub duration_in_ms: Option<u64>,
     pub status: AdfPipelineStatus,
@@ -103,15 +104,7 @@ impl AdfClient {
         factory_name: String,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         debug!("Checking environment variables...");
-        debug!("AZURE_CLIENT_ID: {:?}", std::env::var("AZURE_CLIENT_ID"));
-        debug!("AZURE_TENANT_ID: {:?}", std::env::var("AZURE_TENANT_ID"));
-        debug!(
-            "AZURE_CLIENT_SECRET: {:?}",
-            std::env::var("AZURE_CLIENT_SECRET").map(|s| "***".to_string())
-        );
-
         let credential = DefaultAzureCredential::new()?;
-
         Ok(Self {
             subscription_id,
             resource_group,
@@ -120,93 +113,61 @@ impl AdfClient {
             client: Client::new(),
         })
     }
+
     pub async fn trigger_pipeline_run(
         &self,
         pipeline_name: &str,
         parameters: Option<serde_json::Value>,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        debug!("trigger pipeline run for {} ", pipeline_name,);
-        let token_response = self
+        let token = self
             .credential
             .get_token(&["https://management.azure.com/.default"])
-            .await;
-        match token_response {
-            Ok(token) => {
-                debug!("Token acquired successfully");
-                let access_token = token.token.secret();
-                let url = format!(
-                    "https://management.azure.com/subscriptions/{}/resourceGroups/{}/providers/Microsoft.DataFactory/factories/{}/pipelines/{}/createRun?api-version=2018-06-01",
-                    self.subscription_id, self.resource_group, self.factory_name, pipeline_name
-                );
-                debug!("url: {}", url);
-
-                let body = if let Some(params) = parameters {
-                    json!({ "parameters": params })
-                } else {
-                    json!({})
-                };
-
-                let res = self
-                    .client
-                    .post(&url)
-                    .bearer_auth(access_token)
-                    .json(&body)
-                    .send()
-                    .await?;
-
-                if res.status().is_success() {
-                    let resp_json: serde_json::Value = res.json().await?;
-                    let run_id = resp_json["runId"].as_str().unwrap_or_default().to_string();
-                    debug!("run_id: {}", run_id);
-                    Ok(run_id)
-                } else {
-                    let err_text = res.text().await?;
-                    let err_msg = format!("Failed to trigger pipeline run: {}", err_text);
-                    Err(err_msg.into())
-                }
-            }
-            Err(e) => {
-                let err_msg = format!("Failed to acquire token: {}", e);
-                return Err(err_msg.into());
-            }
+            .await?;
+        let url = format!(
+            "https://management.azure.com/subscriptions/{}/resourceGroups/{}/providers/Microsoft.DataFactory/factories/{}/pipelines/{}/createRun?api-version=2018-06-01",
+            self.subscription_id, self.resource_group, self.factory_name, pipeline_name
+        );
+        let body = json!({ "parameters": parameters.unwrap_or_default() });
+        let res = self
+            .client
+            .post(&url)
+            .bearer_auth(token.token.secret())
+            .json(&body)
+            .send()
+            .await?;
+        if res.status().is_success() {
+            let run_id = res.json::<serde_json::Value>().await?["runId"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+            Ok(run_id)
+        } else {
+            Err(format!("Failed to trigger pipeline run: {}", res.text().await?).into())
         }
     }
+
     pub async fn get_pipeline_status(
         &self,
         run_id: &str,
     ) -> Result<AdfPipelineRunStatus, Box<dyn std::error::Error>> {
-        let token_response = self
+        let token = self
             .credential
             .get_token(&["https://management.azure.com/.default"])
-            .await;
-        match token_response {
-            Ok(token) => {
-                debug!("Token acquired successfully");
-                let access_token = token.token.secret();
-                let url = format!(
-                    "https://management.azure.com/subscriptions/{}/resourceGroups/{}/providers/Microsoft.DataFactory/factories/{}/pipelineruns/{}?api-version=2018-06-01",
-                    self.subscription_id, self.resource_group, self.factory_name, run_id
-                );
-                debug!("url: {}", url);
-                let res = self
-                    .client
-                    .get(&url)
-                    .bearer_auth(access_token)
-                    .send()
-                    .await?;
-                if res.status().is_success() {
-                    let res = res.json::<AdfPipelineRunStatus>().await?;
-                    Ok(res)
-                } else {
-                    let err_text = res.text().await?;
-                    let err_msg = format!("Failed to get pipeline status: {}", err_text);
-                    Err(err_msg.into())
-                }
-            }
-            Err(e) => {
-                let err_msg = format!("Failed to acquire token: {}", e);
-                Err(err_msg.into())
-            }
+            .await?;
+        let url = format!(
+            "https://management.azure.com/subscriptions/{}/resourceGroups/{}/providers/Microsoft.DataFactory/factories/{}/pipelineruns/{}?api-version=2018-06-01",
+            self.subscription_id, self.resource_group, self.factory_name, run_id
+        );
+        let res = self
+            .client
+            .get(&url)
+            .bearer_auth(token.token.secret())
+            .send()
+            .await?;
+        if res.status().is_success() {
+            Ok(res.json::<AdfPipelineRunStatus>().await?)
+        } else {
+            Err(format!("Failed to get pipeline status: {}", res.text().await?).into())
         }
     }
 }
