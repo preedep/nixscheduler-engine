@@ -24,6 +24,7 @@ pub struct OidcCallbackForm {
 /// GET /auth/login
 #[get("/login")]
 pub async fn login() -> impl Responder {
+    debug!("Login");
     // โหลดค่าจาก .env หรือ config system
     let tenant_id = env::var("AZURE_TENANT_ID").expect("Missing AZURE_TENANT_ID");
     let metadata = fetch_metadata(&tenant_id).await;
@@ -70,7 +71,57 @@ pub async fn login() -> impl Responder {
     HttpResponse::Found()
         .append_header(("Location", redirect_url))
         .cookie(cookie)
+        .cookie(
+            Cookie::build("logged_in", "true")
+                .path("/")
+                .secure(true)
+                .http_only(false) // ต้อง false ถ้าให้ JS เห็น cookie
+                .max_age(time::Duration::minutes(30))
+                .finish()
+        )
         .finish()
+}
+
+#[get("/logout")]
+pub async fn logout() -> impl Responder {
+    debug!("Logout");
+    
+    let tenant_id = env::var("AZURE_TENANT_ID").expect("Missing AZURE_TENANT_ID");
+
+    let metadata = match fetch_metadata(&tenant_id).await {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            eprintln!("Error fetching OIDC metadata: {}", e);
+            return HttpResponse::InternalServerError().finish();
+        }
+    };
+
+    debug!("OIDC Metadata: {:#?}", metadata);
+
+    // ลบ cookie ที่เกี่ยวข้องกับ OIDC
+    let cookie = Cookie::build(COOKIE_OIDC_NONCE, "")
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .max_age(time::Duration::seconds(0))
+        .finish();
+
+    if let Some(logout_url) = metadata.end_session_endpoint {
+        
+        let app_login_url = env::var("APP_LOGIN_URL").expect("Missing APP_LOGIN_URL");
+        let redirect = format!(
+            "{}?post_logout_redirect_uri={}",
+            logout_url,
+            urlencoding::encode(app_login_url.as_str())  // ✅ ใส่ URL เต็ม
+        );
+
+        HttpResponse::Found()
+            .append_header(("Location", redirect))  // ✅ redirect จริงไปที่ Azure logout
+            .cookie(cookie)
+            .finish()
+    } else {
+        HttpResponse::BadRequest().body("Missing end_session_endpoint")
+    }
 }
 
 #[post("/callback")]
@@ -127,5 +178,6 @@ pub async fn callback(form: web::Form<OidcCallbackForm>,
 pub fn auth_routes() -> Scope {
     web::scope("/auth")
         .service(login)
+        .service(logout)
         .service(callback)
 }

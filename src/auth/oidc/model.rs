@@ -10,6 +10,7 @@ pub struct OidcMetadata {
     pub id_token_signing_alg_values_supported: Vec<String>,
     pub response_modes_supported: Vec<String>,
     pub scopes_supported: Option<Vec<String>>,
+    pub end_session_endpoint: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
