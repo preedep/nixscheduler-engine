@@ -3,7 +3,6 @@ use crate::domain::task_payload::TaskPayload;
 use crate::task::handler::TaskHandler;
 use async_trait::async_trait;
 use log::debug;
-use std::error::Error as StdError;
 
 pub struct AdfTask;
 
@@ -16,22 +15,20 @@ impl TaskHandler for AdfTask {
     async fn handle(&self, payload: &TaskPayload) -> Result<(), String> {
         let adf_config = payload.as_adf().ok_or("Invalid payload for ADF task")?;
         debug!("ADF task handler");
+
         let adf_client = AdfClient::new(
             adf_config.subscription_id.clone(),
             adf_config.resource_group.clone(),
             adf_config.factory_name.clone(),
         )
-        .map_err(|err| err.to_string())?;
+            .map_err(|e| e.to_string())?;
 
         let id = adf_client
             .trigger_pipeline_run(&adf_config.pipeline, None)
             .await
             .map_err(|e| e.to_string())?;
 
-        debug!(
-            "trigger pipeline run for {} with parameters {}",
-            id, payload
-        );
+        debug!("Triggered pipeline run: {} with parameters {}", id, payload);
 
         loop {
             let status = adf_client
@@ -46,16 +43,14 @@ impl TaskHandler for AdfTask {
                 }
                 AdfPipelineStatus::Failed => {
                     debug!("Pipeline run failed");
-                    let error_message = status.message.unwrap_or("Pipeline run failed".to_string());
-                    return Err(error_message);
+                    return Err(status.message.unwrap_or_else(|| "Pipeline run failed".to_string()));
                 }
-                _ => {
-                    debug!("Pipeline run status: {:?}", status);
-                }
+                _ => debug!("Pipeline run status: {:?}", status),
             }
 
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
+
         Ok(())
     }
 }
