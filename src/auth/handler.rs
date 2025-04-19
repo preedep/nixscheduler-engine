@@ -2,7 +2,7 @@ use std::env;
 use std::fs::metadata;
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder, Scope};
 use actix_web::cookie::Cookie;
-use log::debug;
+use log::{debug, error};
 use serde::Deserialize;
 use urlencoding::encode;
 use uuid::Uuid;
@@ -44,7 +44,8 @@ pub async fn login() -> impl Responder {
     // สร้าง state เพื่อป้องกัน CSRF
     let state = Uuid::new_v4().to_string();
     let nonce = Uuid::new_v4().to_string();
-
+    
+    
     // สร้าง URL เพื่อ redirect ไปยัง Authorization Endpoint (Entra ID หรืออื่น ๆ)
     let redirect_url = format!(
         "{}?response_type=id_token&client_id={}&redirect_uri={}&scope={}&state={}&response_mode=form_post&nonce={}",
@@ -68,6 +69,7 @@ pub async fn login() -> impl Responder {
     // redirect ไปยัง IDP (เช่น Entra ID)
     HttpResponse::Found()
         .append_header(("Location", redirect_url))
+        .cookie(cookie)
         .finish()
 }
 
@@ -89,13 +91,16 @@ pub async fn callback(form: web::Form<OidcCallbackForm>,
     let metadata = match metadata {
         Ok(metadata) => metadata,
         Err(e) => {
-            eprintln!("Error fetching OIDC metadata: {}", e);
+            error!("Error fetching OIDC metadata: {}", e);
             return HttpResponse::InternalServerError().finish();
         }
     };
     if let Some(id_token) = &form.id_token {
+        debug!("ID Token: {}", id_token);
         // Extract nonce from secure cookie
         let nonce_cookie = req.cookie(COOKIE_OIDC_NONCE);
+        debug!("Nonce Cookie: {:?}", nonce_cookie);
+        
         let expected_nonce = match nonce_cookie {
             Some(cookie) => cookie.value().to_string(),
             None => return HttpResponse::BadRequest().body("Missing nonce cookie"),
@@ -106,15 +111,17 @@ pub async fn callback(form: web::Form<OidcCallbackForm>,
                                  &client_id, expected_nonce.as_str(),
                                  &metadata.jwks_uri,
                                  &metadata.issuer).await.map_err(|e| {
-            eprintln!("Error verifying ID token: {}", e);
+            error!("Error verifying ID token: {}", e);
             HttpResponse::Unauthorized().body("Invalid ID token")
         }).unwrap();
         debug!("ID Token Claims: {:#?}", id);
         // finish login process 
+        return HttpResponse::Found()
+            .append_header(("Location", "/index.html"))
+            .finish();
     }else {
         return HttpResponse::BadRequest().body("Missing id_token");
     }
-    HttpResponse::Ok().finish()
 }
 
 pub fn auth_routes() -> Scope {

@@ -1,4 +1,5 @@
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation, Algorithm};
+use log::debug;
 use serde::{Deserialize};
 use serde_json::Value;
 use crate::auth::oidc::IdTokenClaims;
@@ -11,6 +12,12 @@ async fn fetch_jwks(jwks_uri: &str) -> Result<serde_json::Value, reqwest::Error>
 pub async fn verify_id_token(id_token: &str, client_id: &str, expected_nonce: &str, jwks_uri: &str, expected_issuer: &str)
                          -> Result<IdTokenClaims, String>
 {
+    debug!("Verifying ID token: {}", id_token);
+    debug!("Client ID: {}", client_id);
+    debug!("Expected nonce: {}", expected_nonce);
+    debug!("JWKS URI: {}", jwks_uri);
+    debug!("Expected issuer: {}", expected_issuer);
+    // Fetch JWKS
     let jwks = fetch_jwks(jwks_uri).await.map_err(|e| e.to_string())?;
 
     let header = decode_header(id_token).map_err(|e| format!("Invalid header: {}", e))?;
