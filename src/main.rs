@@ -7,7 +7,7 @@ use actix_files::Files;
 use actix_web::{App, HttpServer, main, web};
 use log::{debug, info};
 use std::sync::Arc;
-use crate::auth::auth_routes;
+use crate::auth::{auth_routes, fetch_metadata, AuthMiddleware};
 
 mod api;
 mod azure;
@@ -59,15 +59,20 @@ async fn main() -> std::io::Result<()> {
         engine_clone.run().await;
     });
 
-  
+    let tenant_id = std::env::var("AZURE_TENANT_ID").unwrap();
+    let meta = fetch_metadata(&tenant_id).await.unwrap();
+    let jwks = meta.jwks_uri;
+    let auth = AuthMiddleware::new(jwks);
    
     
     HttpServer::new(move || {
+        let job_routes = job_routes().wrap(auth.clone());
+        
         App::new()
             .wrap(actix_web::middleware::Logger::default())
             .app_data(web::Data::new(store.clone()))
             .app_data(web::Data::new(engine.clone()))
-            .service(web::scope("/api").service(job_routes()))
+            .service(web::scope("/api").service(job_routes))
             .service(auth_routes())
             .service(Files::new("/", "./statics").index_file("index.html"))
     })

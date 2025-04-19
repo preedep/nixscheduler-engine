@@ -88,10 +88,16 @@ fn validate_token(token: &str, jwks_url: &str) -> Result<TokenData<Claims>, json
     decode::<Claims>(token, key, &Validation::new(Algorithm::RS256))
 }
 
+#[derive(Debug,Clone)]
 pub struct AuthMiddleware {
     pub jwks_url: String,
 }
 
+impl AuthMiddleware {
+    pub fn new(jwks_url: String) -> Self {
+        Self { jwks_url }
+    }
+}
 impl<S> Transform<S, ServiceRequest> for AuthMiddleware
 where
     S: Service<ServiceRequest, Response = ServiceResponse<BoxBody>, Error = Error> + 'static,

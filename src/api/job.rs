@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
-
+use crate::auth::{fetch_metadata, AuthMiddleware};
 use crate::job::store::{JobStore, SqliteJobStore};
 
 #[derive(Debug, Deserialize)]
@@ -156,10 +156,14 @@ async fn delete_job(
 }
 
 pub fn job_routes() -> Scope {
+
+   
+    
     web::scope("/jobs")
         .service(create_job)
         .service(list_jobs)
         .service(get_job_by_id)
         .service(update_job)
         .service(delete_job)
+        
 }
