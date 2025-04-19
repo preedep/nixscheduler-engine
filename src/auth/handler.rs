@@ -12,6 +12,10 @@ static COOKIE_OIDC_NONCE: &str = "oidc_nonce";
 static COOKIE_ACCESS_TOKEN: &str = "access_token";
 
 static COOKIE_LOGGED_STATE: &str = "logged_in";
+
+static COOKIE_TIMEOUT: i64 = 30;
+static COOKIE_NONCE_TIMEOUT: i64 = 5;
+
 #[derive(Debug, Deserialize)]
 pub struct OidcCallbackForm {
     code: Option<String>,
@@ -67,7 +71,7 @@ pub async fn login() -> impl Responder {
         .path("/")
         .secure(true)
         .http_only(true)
-        .max_age(time::Duration::minutes(5))
+        .max_age(time::Duration::minutes(COOKIE_NONCE_TIMEOUT))
         .finish();
     
 
@@ -80,7 +84,7 @@ pub async fn login() -> impl Responder {
                 .path("/")
                 .secure(true)
                 .http_only(false) // ต้อง false ถ้าให้ JS เห็น cookie
-                .max_age(time::Duration::minutes(30))
+                .max_age(time::Duration::minutes(COOKIE_TIMEOUT))
                 .finish()
         )
         .finish()
@@ -186,7 +190,7 @@ pub async fn callback(form: web::Form<OidcCallbackForm>, req: HttpRequest) -> im
                 .http_only(true)
                 .secure(true)
                 .path("/")
-                .max_age(time::Duration::minutes(30))
+                .max_age(time::Duration::minutes(COOKIE_TIMEOUT))
                 .finish();
 
             return HttpResponse::Found()

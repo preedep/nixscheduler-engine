@@ -21,6 +21,27 @@ function checkLogin() {
     }
 }
 
+function getAccessTokenFromCookie() {
+    const cookies = document.cookie.split(';').map(c => c.trim());
+    const tokenCookie = cookies.find(c => c.startsWith('access_token='));
+    return tokenCookie ? decodeURIComponent(tokenCookie.split('=')[1]) : null;
+}
+
+async function fetchWithAuth(url, options = {}) {
+    if (url.startsWith('/auth')) return fetch(url, options); // Don't attach for auth routes
+
+    const token = getAccessTokenFromCookie();
+    if (!token) {
+        console.warn("Access token not found");
+        return fetch(url, options); // fallback
+    }
+
+    const headers = new Headers(options.headers || {});
+    headers.set('Authorization', `Bearer ${token}`);
+
+    return fetch(url, { ...options, headers });
+}
+
 function buildOverview(tasks) {
     const container = document.getElementById('job-overview');
     if (!container) return;
@@ -45,7 +66,7 @@ function buildOverview(tasks) {
 
 async function fetchTasks() {
     try {
-        const res = await fetch('/api/jobs');
+        const res = await fetchWithAuth('/api/jobs');
         if (res.status === 401) {
             window.location.href = '/login.html';
             return;
