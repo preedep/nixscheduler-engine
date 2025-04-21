@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, rc::Rc, sync::Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
+use log::debug;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Claims {
@@ -147,6 +148,7 @@ where
             if let Some(header_value) = header_value {
                 if let Some(token) = header_value.strip_prefix("Bearer ") {
                     let token = token.trim().to_string();
+                    debug!("Token: {:#?}", token);
                     if let Ok(token_data) = validate_token(&token, &jwks_url) {
                         req.extensions_mut().insert(token_data.claims);
                         return srv.call(req).await;

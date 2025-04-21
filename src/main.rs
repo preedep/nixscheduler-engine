@@ -61,9 +61,12 @@ async fn main() -> std::io::Result<()> {
 
     let tenant_id = std::env::var("AZURE_TENANT_ID").unwrap();
     let meta = fetch_metadata(&tenant_id).await.unwrap();
-    let jwks = meta.jwks_uri;
+    let jwks = meta.clone().jwks_uri;
     let auth = AuthMiddleware::new(jwks);
    
+    debug!("Auth middleware created");
+    debug!("Starting server...");
+    debug!("Metadata: {:#?}", meta.clone());
     
     HttpServer::new(move || {
         let job_routes = job_routes().wrap(auth.clone());
