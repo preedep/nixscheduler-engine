@@ -60,7 +60,9 @@ async fn fetch_jwks(jwks_url: &str) -> Result<HashMap<String, DecodingKey>, reqw
 }
 
 pub async fn validate_token(token: &str, jwks_url: &str) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
+    debug!("Validating token");
     let header = decode_header(token)?;
+    debug!("Header: {:#?}", header);
     let kid = header.kid.ok_or(jsonwebtoken::errors::ErrorKind::InvalidToken)?;
 
     let cache = JWKS_CACHE.get_or_init(|| Mutex::new(None));
@@ -96,7 +98,11 @@ pub async fn validate_token(token: &str, jwks_url: &str) -> Result<TokenData<Cla
     }
 
     let key = keys.get(&kid).ok_or(jsonwebtoken::errors::ErrorKind::InvalidKeyFormat)?;
-    decode::<Claims>(token, key, &Validation::new(Algorithm::RS256))
+    let mut validation = Validation::new(Algorithm::RS256);
+    let aud = std::env::var("OIDC_AUD").unwrap_or_else(|_| "api://your-client-id".to_string());
+    debug!("Aud: {}", aud);
+    validation.set_audience(&[aud]);
+    decode::<Claims>(token, key, &validation)
 }
 
 #[derive(Debug,Clone)]
@@ -164,14 +170,20 @@ where
             if let Some(header_value) = header_value {
                 if let Some(token) = header_value.strip_prefix("Bearer ") {
                     let token = token.trim().to_string();
-                    debug!("Token: {:#?}", token);
-                    if let Ok(token_data) = validate_token(&token, &jwks_url).await {
-                        req.extensions_mut().insert(token_data.claims);
-                        return srv.call(req).await;
+                    let r = validate_token(&token, &jwks_url).await;
+                    match r {
+                        Ok(token_data) => {
+                            debug!("Token data: {:#?}", token_data);
+                            req.extensions_mut().insert(token_data.claims);
+                            return srv.call(req).await;
+                        }
+                        Err(e) => {
+                            error!("Token validation error: {}", e);
+                        }
                     }
                 }
             }
-
+            debug!("Token validation failed");
             Ok(req.into_response(
                 HttpResponse::Unauthorized()
                     .body("Unauthorized")
