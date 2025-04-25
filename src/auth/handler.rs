@@ -1,5 +1,4 @@
 use std::env;
-use std::fs::metadata;
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder, Scope};
 use actix_web::cookie::Cookie;
 use log::{debug, error};
@@ -10,11 +9,10 @@ use crate::auth::oidc::{fetch_metadata, verify_id_token};
 
 static COOKIE_OIDC_NONCE: &str = "oidc_nonce";
 static COOKIE_ACCESS_TOKEN: &str = "access_token";
-
 static COOKIE_LOGGED_STATE: &str = "logged_in";
 
-static COOKIE_TIMEOUT: i64 = 30;
-static COOKIE_NONCE_TIMEOUT: i64 = 5;
+static COOKIE_TIMEOUT: i64 = 30; // นาที
+static COOKIE_NONCE_TIMEOUT: i64 = 5; // นาที
 
 #[derive(Debug, Deserialize)]
 pub struct OidcCallbackForm {
@@ -29,36 +27,73 @@ pub struct OidcCallbackForm {
     scope: Option<String>,
     error_description: Option<String>,
 }
+
+/// Helper: เช็คว่าเป็น production หรือไม่
+fn is_production() -> bool {
+    env::var("APP_ENV")
+        .map(|env| env.to_lowercase() == "prod" || env.to_lowercase() == "production")
+        .unwrap_or(false)
+}
+
+/// Helper: สร้าง Cookie access_token ตาม mode (Prod / Dev)
+fn build_access_token_cookie(access_token: &str) -> Cookie<'static> {
+    let mut cookie = Cookie::build(COOKIE_ACCESS_TOKEN, access_token.to_owned())
+        .path("/")
+        .max_age(time::Duration::minutes(COOKIE_TIMEOUT));
+
+    if is_production() {
+        cookie = cookie.secure(true).http_only(true); // Production: secure, httpOnly
+    } else {
+        cookie = cookie.secure(false).http_only(false); // Dev: allow JS access
+    }
+
+    cookie.finish()
+}
+
+/// Helper: สร้าง Cookie logged_in สำหรับ JS
+fn build_logged_in_cookie() -> Cookie<'static> {
+    Cookie::build(COOKIE_LOGGED_STATE, "true")
+        .path("/")
+        .secure(is_production()) // Prod = true, Dev = false
+        .http_only(false)         // ต้องเป็น false เสมอ เพราะ JS ต้องอ่านได้
+        .max_age(time::Duration::minutes(COOKIE_TIMEOUT))
+        .finish()
+}
+
+/// Helper: สร้าง Cookie oidc_nonce สำหรับ verify
+fn build_oidc_nonce_cookie(nonce: &str) -> Cookie<'static> {
+    Cookie::build(COOKIE_OIDC_NONCE, nonce.to_owned())
+        .path("/")
+        .secure(true)    // ควร secure เสมอ
+        .http_only(true) // ต้อง httpOnly เพื่อความปลอดภัย
+        .max_age(time::Duration::minutes(COOKIE_NONCE_TIMEOUT))
+        .finish()
+}
+
 /// GET /auth/login
 #[get("/login")]
 pub async fn login() -> impl Responder {
     debug!("Login");
-    // โหลดค่าจาก .env หรือ config system
+
     let tenant_id = env::var("AZURE_TENANT_ID").expect("Missing AZURE_TENANT_ID");
-    let metadata = fetch_metadata(&tenant_id).await;
-    let metadata = match metadata {
+    let metadata = match fetch_metadata(&tenant_id).await {
         Ok(metadata) => metadata,
         Err(e) => {
-            eprintln!("Error fetching OIDC metadata: {}", e);
+            error!("Error fetching OIDC metadata: {}", e);
             return HttpResponse::InternalServerError().finish();
         }
     };
-    debug!("OIDC Metadata: {:?}", metadata);
 
     let client_id = env::var("OIDC_CLIENT_ID").expect("Missing OIDC_CLIENT_ID");
     let redirect_uri = env::var("OIDC_REDIRECT_URI").expect("Missing OIDC_REDIRECT_URI");
-    let authorization_endpoint = metadata.authorization_endpoint;
     let scope = env::var("OIDC_SCOPES").unwrap_or_else(|_| "openid profile email".to_string());
 
-    // สร้าง state เพื่อป้องกัน CSRF
     let state = Uuid::new_v4().to_string();
     let nonce = Uuid::new_v4().to_string();
-    
-    
-    // สร้าง URL เพื่อ redirect ไปยัง Authorization Endpoint (Entra ID หรืออื่น ๆ)
+
     let redirect_url = format!(
         "{}?response_type=id_token%20token&client_id={}&redirect_uri={}&scope={}&state={}&response_mode=form_post&nonce={}",
-        authorization_endpoint,
+        metadata.authorization_endpoint,
         encode(&client_id),
         encode(&redirect_uri),
         encode(&scope),
@@ -66,73 +101,14 @@ pub async fn login() -> impl Responder {
         encode(&nonce)
     );
 
-    // Set nonce in secure cookie (expires in ~5 mins)
-    let cookie = Cookie::build(COOKIE_OIDC_NONCE, nonce.clone())
-        .path("/")
-        .secure(true)
-        .http_only(true)
-        .max_age(time::Duration::minutes(COOKIE_NONCE_TIMEOUT))
-        .finish();
-    
-
-    // redirect ไปยัง IDP (เช่น Entra ID)
     HttpResponse::Found()
         .append_header(("Location", redirect_url))
-        .cookie(cookie)
-        .cookie(
-            Cookie::build(COOKIE_LOGGED_STATE, "true")
-                .path("/")
-                .secure(true)
-                .http_only(false) // ต้อง false ถ้าให้ JS เห็น cookie
-                .max_age(time::Duration::minutes(COOKIE_TIMEOUT))
-                .finish()
-        )
+        .cookie(build_oidc_nonce_cookie(&nonce))
+        .cookie(build_logged_in_cookie())
         .finish()
 }
 
-#[post("/logout")]
-pub async fn logout() -> impl Responder {
-    debug!("Logout");
-    
-    let tenant_id = env::var("AZURE_TENANT_ID").expect("Missing AZURE_TENANT_ID");
-
-    let metadata = match fetch_metadata(&tenant_id).await {
-        Ok(metadata) => metadata,
-        Err(e) => {
-            eprintln!("Error fetching OIDC metadata: {}", e);
-            return HttpResponse::InternalServerError().finish();
-        }
-    };
-
-    debug!("OIDC Metadata: {:#?}", metadata);
-
-    // ลบ cookie ที่เกี่ยวข้องกับ OIDC
-    let cookie = Cookie::build(COOKIE_OIDC_NONCE, "")
-        .path("/")
-        .secure(true)
-        .http_only(true)
-        .max_age(time::Duration::seconds(0))
-        .finish();
-
-    
-    if let Some(logout_url) = metadata.end_session_endpoint {
-        
-        let app_login_url = env::var("APP_LOGIN_URL").expect("Missing APP_LOGIN_URL");
-        let redirect = format!(
-            "{}?post_logout_redirect_uri={}",
-            logout_url,
-            urlencoding::encode(app_login_url.as_str())  // ✅ ใส่ URL เต็ม
-        );
-
-        HttpResponse::Found()
-            .append_header(("Location", redirect))  // ✅ redirect จริงไปที่ Azure logout
-            .cookie(cookie)
-            .finish()
-    } else {
-        HttpResponse::BadRequest().body("Missing end_session_endpoint")
-    }
-}
-
+/// POST /auth/callback
 #[post("/callback")]
 pub async fn callback(form: web::Form<OidcCallbackForm>, req: HttpRequest) -> impl Responder {
     debug!("OIDC Callback Form: {:#?}", form);
@@ -156,14 +132,10 @@ pub async fn callback(form: web::Form<OidcCallbackForm>, req: HttpRequest) -> im
     };
 
     if let Some(id_token) = &form.id_token {
-        debug!("ID Token: {}", id_token);
-
         let expected_nonce = match req.cookie(COOKIE_OIDC_NONCE) {
             Some(cookie) => cookie.value().to_string(),
             None => return HttpResponse::BadRequest().body("Missing nonce cookie"),
         };
-
-        debug!("Expected nonce: {}", expected_nonce);
 
         let id = match verify_id_token(
             id_token,
@@ -184,18 +156,9 @@ pub async fn callback(form: web::Form<OidcCallbackForm>, req: HttpRequest) -> im
         debug!("ID Token Claims: {:#?}", id);
 
         if let Some(access_token) = &form.access_token {
-            debug!("Access Token: {}", access_token);
-
-            let cookie = Cookie::build(COOKIE_ACCESS_TOKEN, access_token)
-                .http_only(true)
-                .secure(true)
-                .path("/")
-                .max_age(time::Duration::minutes(COOKIE_TIMEOUT))
-                .finish();
-
             return HttpResponse::Found()
                 .append_header(("Location", "/index.html"))
-                .cookie(cookie)
+                .cookie(build_access_token_cookie(access_token))
                 .finish();
         }
 
@@ -205,9 +168,49 @@ pub async fn callback(form: web::Form<OidcCallbackForm>, req: HttpRequest) -> im
     HttpResponse::BadRequest().body("Missing id_token")
 }
 
+/// POST /auth/logout
+#[post("/logout")]
+pub async fn logout() -> impl Responder {
+    debug!("Logout");
+
+    let tenant_id = env::var("AZURE_TENANT_ID").expect("Missing AZURE_TENANT_ID");
+
+    let metadata = match fetch_metadata(&tenant_id).await {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            error!("Error fetching OIDC metadata: {}", e);
+            return HttpResponse::InternalServerError().finish();
+        }
+    };
+
+    let cookie_clear = Cookie::build(COOKIE_OIDC_NONCE, "")
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .max_age(time::Duration::seconds(0))
+        .finish();
+
+    if let Some(logout_url) = metadata.end_session_endpoint {
+        let app_login_url = env::var("APP_LOGIN_URL").expect("Missing APP_LOGIN_URL");
+        let redirect = format!(
+            "{}?post_logout_redirect_uri={}",
+            logout_url,
+            encode(&app_login_url)
+        );
+
+        HttpResponse::Found()
+            .append_header(("Location", redirect))
+            .cookie(cookie_clear)
+            .finish()
+    } else {
+        HttpResponse::BadRequest().body("Missing end_session_endpoint")
+    }
+}
+
+/// Mount route /auth/*
 pub fn auth_routes() -> Scope {
     web::scope("/auth")
         .service(login)
-        .service(logout)
         .service(callback)
+        .service(logout)
 }

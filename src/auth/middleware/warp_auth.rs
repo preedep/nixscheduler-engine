@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, rc::Rc, sync::Mutex};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use log::debug;
+use log::{debug, error};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Claims {
@@ -21,13 +21,16 @@ pub struct Claims {
 
 #[derive(Debug, Deserialize)]
 struct Jwk {
-    kid: String,
-    n: String,
-    e: String,
-    kty: String,
-    alg: String,
+    pub kid: String,
+    pub n: String,
+    pub e: String,
+    pub kty: String,
+    pub alg: Option<String>,
     #[serde(rename = "use")]
-    use_: String,
+    pub use_: Option<String>,
+    pub x5c: Option<Vec<String>>,
+    pub issuer: Option<String>,               // <- บางตัวไม่มี
+    pub cloud_instance_name: Option<String>,  // <- บางตัวไม่มี
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +46,7 @@ struct CachedJwks {
 static JWKS_CACHE: OnceCell<Mutex<Option<CachedJwks>>> = OnceCell::new();
 
 async fn fetch_jwks(jwks_url: &str) -> Result<HashMap<String, DecodingKey>, reqwest::Error> {
+    debug!("Fetching JWKS from {}", jwks_url);
     let res = Client::new().get(jwks_url).send().await?.json::<Jwks>().await?;
     let mut map = HashMap::new();
     for key in res.keys {
@@ -55,14 +59,18 @@ async fn fetch_jwks(jwks_url: &str) -> Result<HashMap<String, DecodingKey>, reqw
     Ok(map)
 }
 
-fn validate_token(token: &str, jwks_url: &str) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
+pub async fn validate_token(token: &str, jwks_url: &str) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
     let header = decode_header(token)?;
     let kid = header.kid.ok_or(jsonwebtoken::errors::ErrorKind::InvalidToken)?;
+
     let cache = JWKS_CACHE.get_or_init(|| Mutex::new(None));
     let keys: HashMap<String, DecodingKey>;
 
     {
-        let mut guard = cache.lock().unwrap();
+        let mut guard = cache.lock().unwrap_or_else(|poisoned| {
+            error!("JWKS cache poisoned! Recovering.");
+            poisoned.into_inner()
+        });
 
         let reload = guard
             .as_ref()
@@ -70,18 +78,20 @@ fn validate_token(token: &str, jwks_url: &str) -> Result<TokenData<Claims>, json
             .unwrap_or(true);
 
         if reload {
-            let new_keys = tokio::runtime::Runtime::new()
-                .unwrap()
-                .block_on(fetch_jwks(jwks_url))
-                .unwrap_or_default();
-
-            *guard = Some(CachedJwks {
-                keys: new_keys,
-                fetched_at: Instant::now(),
-            });
+            match fetch_jwks(jwks_url).await {
+                Ok(new_keys) => {
+                    *guard = Some(CachedJwks {
+                        keys: new_keys,
+                        fetched_at: Instant::now(),
+                    });
+                }
+                Err(e) => {
+                    error!("Failed to fetch JWKS: {}", e);
+                    return Err(jsonwebtoken::errors::ErrorKind::InvalidKeyFormat.into());
+                }
+            }
         }
 
-        // ✅ Clone keys before guard is dropped
         keys = guard.as_ref().unwrap().keys.clone();
     }
 
@@ -155,7 +165,7 @@ where
                 if let Some(token) = header_value.strip_prefix("Bearer ") {
                     let token = token.trim().to_string();
                     debug!("Token: {:#?}", token);
-                    if let Ok(token_data) = validate_token(&token, &jwks_url) {
+                    if let Ok(token_data) = validate_token(&token, &jwks_url).await {
                         req.extensions_mut().insert(token_data.claims);
                         return srv.call(req).await;
                     }

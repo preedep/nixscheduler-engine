@@ -24,6 +24,7 @@ function getAccessTokenFromCookie() {
     const cookies = document.cookie.split(';').map(c => c.trim());
     console.log("[DEBUG] document.cookie =", document.cookie); // 🔍 เพิ่ม debug
     const tokenCookie = cookies.find(c => c.startsWith('access_token='));
+    console.log("[DEBUG] tokenCookie =", tokenCookie); // 🔍 เพิ่ม debug
     return tokenCookie ? decodeURIComponent(tokenCookie.split('=')[1]) : null;
 }
 
