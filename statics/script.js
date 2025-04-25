@@ -16,30 +16,58 @@ function escapeHtml(unsafe = '') {
 function checkLogin() {
     const cookies = document.cookie.split(';').map(c => c.trim());
     const isLoggedIn = cookies.some(c => c.startsWith('logged_in=') && c.split('=')[1] === 'true');
-    if (!isLoggedIn) {
-        window.location.href = '/login.html';
-    }
+    console.log('[CheckLogin] Logged in:', isLoggedIn);
+    // ❌ ไม่ redirect ทันที ปล่อยให้ fetchTasks เป็นผู้ตัดสินใจ
 }
 
 function getAccessTokenFromCookie() {
     const cookies = document.cookie.split(';').map(c => c.trim());
+    console.log("[DEBUG] document.cookie =", document.cookie); // 🔍 เพิ่ม debug
     const tokenCookie = cookies.find(c => c.startsWith('access_token='));
     return tokenCookie ? decodeURIComponent(tokenCookie.split('=')[1]) : null;
 }
 
+function showAuthErrorDialog() {
+    if (document.getElementById('auth-error-dialog')) return;
+
+    const dialog = document.createElement('div');
+    dialog.id = 'auth-error-dialog';
+    dialog.style.position = 'fixed';
+    dialog.style.top = '50%';
+    dialog.style.left = '50%';
+    dialog.style.transform = 'translate(-50%, -50%)';
+    dialog.style.backgroundColor = '#fff';
+    dialog.style.padding = '1.5rem';
+    dialog.style.border = '2px solid red';
+    dialog.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+    dialog.style.zIndex = '1000';
+    dialog.innerHTML = `
+        <h3 style="color: red; margin-top: 0;">Authentication Failed</h3>
+        <p>You are not authorized to view this page. Please log in again.</p>
+        <button id="auth-error-ok">OK</button>
+    `;
+    document.body.appendChild(dialog);
+
+    document.getElementById('auth-error-ok').addEventListener('click', () => {
+        dialog.remove();
+        window.location.href = '/login.html';
+    });
+}
+
 async function fetchWithAuth(url, options = {}) {
-    if (url.startsWith('/auth')) return fetch(url, options); // Don't attach for auth routes
+    if (url.startsWith('/auth')) return fetch(url, options);
 
     const token = getAccessTokenFromCookie();
-    if (!token) {
-        console.warn("Access token not found");
-        return fetch(url, options); // fallback
+    const headers = new Headers(options.headers || {});
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const headers = new Headers(options.headers || {});
-    headers.set('Authorization', `Bearer ${token}`);
-
-    return fetch(url, { ...options, headers });
+    return fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include',
+    });
 }
 
 function buildOverview(tasks) {
@@ -68,8 +96,13 @@ async function fetchTasks() {
     try {
         const res = await fetchWithAuth('/api/jobs');
         if (res.status === 401) {
-            window.location.href = '/login.html';
+            console.warn('[Auth] 401 Unauthorized');
+            showAuthErrorDialog();
             return;
+        }
+
+        if (!res.ok) {
+            throw new Error(`Unexpected response: ${res.status}`);
         }
 
         const tasks = await res.json();
@@ -159,10 +192,7 @@ async function fetchTasks() {
         });
     } catch (error) {
         console.error('Error fetching tasks:', error);
-        const tbody = document.querySelector('#task-table tbody');
-        if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="6" style="color:red;">Failed to load tasks.</td></tr>';
-        }
+        showAuthErrorDialog(); // fallback หาก server error หรือ network error
     }
 }
 

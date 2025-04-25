@@ -135,6 +135,10 @@ where
 
     fn call(&self, mut req: ServiceRequest) -> Self::Future {
         // 👇 Read & clone header out before entering async block
+        debug!("AuthMiddlewareMiddleware::call");
+        
+        debug!("AuthMiddlewareMiddleware::call: {:#?}", req.headers());
+        
         let header_value = req
             .headers()
             .get(AUTHORIZATION)
@@ -143,7 +147,9 @@ where
 
         let jwks_url = self.jwks_url.clone();
         let srv = self.service.clone();
-
+        
+        debug!("AuthMiddlewareMiddleware::call: {:#?}", header_value);
+        
         Box::pin(async move {
             if let Some(header_value) = header_value {
                 if let Some(token) = header_value.strip_prefix("Bearer ") {
